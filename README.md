@@ -7,6 +7,20 @@ The platform integrates multi-source wholesale buyer discovery, Gemini 1.5 Flash
 
 ---
 
+## 🔗 Live Production Deployment & Demo
+
+* 🌐 **Live Application:** [https://realestatecrm-sigma.vercel.app](https://realestatecrm-sigma.vercel.app)
+* 📦 **GitHub Repository:** [https://github.com/naina766/real_estate_crm](https://github.com/naina766/real_estate_crm)
+
+### 🔑 Demo Credentials
+
+| Role | Email | Password | Access Level |
+| :--- | :--- | :--- | :--- |
+| **Admin / Export Director** | `admin@exportai.com` | `Admin@1234` | Full Command Center & Telemetry Access |
+| **Sales Manager** | `manager@exportai.com` | `Agent@1234` | Campaigns, Leads, Pipeline & Quotations |
+
+---
+
 ## 🌟 Key Architecture & Capabilities
 
 ```
