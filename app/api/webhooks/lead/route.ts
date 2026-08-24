@@ -1,75 +1,56 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { successResponse, errorResponse, handleApiError } from "@/lib/api";
-import crypto from "crypto";
+import { validateEmailAddress } from "@/lib/email/validator";
+import { ActivityType } from "@prisma/client";
 
-// POST /api/webhooks/lead - Accept leads from external portals
+// POST /api/webhooks/lead - Ingest leads from external forms / catalogs
 export async function POST(req: NextRequest) {
   try {
-    // Verify HMAC signature if secret is set
-    const webhookSecret = process.env.WEBHOOK_SECRET;
-    if (webhookSecret) {
-      const signature = req.headers.get("x-webhook-signature");
-      const rawBody = await req.text();
-      const expectedSig = crypto
-        .createHmac("sha256", webhookSecret)
-        .update(rawBody)
-        .digest("hex");
+    const body = await req.json();
+    const { companyName, contactPerson, email, phone, country, notes, source, productInterest } = body;
 
-      if (signature !== `sha256=${expectedSig}`) {
-        return errorResponse("Invalid webhook signature", 401);
-      }
-
-      // Re-parse body after reading as text
-      const body = JSON.parse(rawBody);
-      return await processWebhookLead(body);
+    if (!companyName || !email) {
+      return errorResponse("companyName and email are required", 400);
     }
 
-    const body = await req.json();
-    return await processWebhookLead(body);
-  } catch (error) {
-    return handleApiError(error);
-  }
-}
+    const val = validateEmailAddress(email);
+    const normalized = val.normalizedEmail;
 
-async function processWebhookLead(body: Record<string, unknown>) {
-  const { name, phone, email, source, budget, notes, preferences } = body;
+    const existing = await prisma.buyerLead.findUnique({
+      where: { normalizedEmail: normalized },
+    });
 
-  if (!name || !phone) {
-    return errorResponse("name and phone are required", 400);
-  }
+    if (existing) {
+      return successResponse({ id: existing.id, isDuplicate: true }, "Lead already exists");
+    }
 
-  // Find an admin/manager to auto-assign
-  const defaultAgent = await prisma.user.findFirst({
-    where: { role: "ADMIN", isActive: true },
-    select: { id: true },
-  });
-
-  const lead = await prisma.lead.create({
-    data: {
-      name: String(name),
-      phone: String(phone),
-      email: email ? String(email) : undefined,
-      source: "API_WEBHOOK",
-      budget: budget ? parseFloat(String(budget)) : undefined,
-      notes: notes ? String(notes) : undefined,
-      preferences: preferences ? (preferences as any) : undefined,
-      assignedToId: defaultAgent?.id,
-    },
-  });
-
-  // Notify admin
-  if (defaultAgent) {
-    await prisma.notification.create({
+    const lead = await prisma.buyerLead.create({
       data: {
-        type: "LEAD_ASSIGNED",
-        title: "New webhook lead received",
-        message: `New lead "${lead.name}" captured via webhook`,
-        userId: defaultAgent.id,
+        companyName,
+        contactPerson,
+        email,
+        normalizedEmail: normalized,
+        emailStatus: val.status,
+        phone,
+        country: country || "Unknown",
+        productInterest,
+        notes,
+        source: source || "INBOUND_WEBHOOK",
+      },
+    });
+
+    await prisma.activity.create({
+      data: {
+        type: ActivityType.NOTE,
+        title: "Inbound Buyer Webhook Lead",
+        description: `Lead ingested from webhook source: ${source || "External Form"}`,
         leadId: lead.id,
       },
     });
-  }
 
-  return successResponse({ leadId: lead.id }, "Lead captured successfully", 201);
+    return successResponse(lead, "Buyer lead ingested successfully", 201);
+  } catch (error) {
+    return handleApiError(error);
+  }
 }

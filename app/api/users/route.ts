@@ -1,13 +1,14 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { successResponse, errorResponse, handleApiError, getPaginationParams, paginatedResponse, getUserFromRequest } from "@/lib/api";
+import { getAuthUser } from "@/lib/auth";
+import { successResponse, errorResponse, handleApiError, getPaginationParams, paginatedResponse } from "@/lib/api";
 import bcrypt from "bcryptjs";
 
 // GET /api/users
 export async function GET(req: NextRequest) {
   try {
-    const user = getUserFromRequest(req);
-    if (!["ADMIN", "MANAGER"].includes(user.role)) return errorResponse("Forbidden", 403);
+    const user = await getAuthUser(req);
+    if (!user || !["ADMIN", "MANAGER"].includes(user.role)) return errorResponse("Forbidden", 403);
 
     const { page, limit, skip, search } = getPaginationParams(req.nextUrl.searchParams);
     const role = req.nextUrl.searchParams.get("role");
@@ -31,9 +32,17 @@ export async function GET(req: NextRequest) {
         take: limit,
         orderBy: { createdAt: "desc" },
         select: {
-          id: true, name: true, email: true, role: true, phone: true,
-          avatar: true, isActive: true, isApproved: true, lastLoginAt: true, createdAt: true,
-          _count: { select: { assignedLeads: true, deals: true, properties: true } },
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          phone: true,
+          avatar: true,
+          isActive: true,
+          isApproved: true,
+          lastLoginAt: true,
+          createdAt: true,
+          _count: { select: { assignedLeads: true, opportunities: true } },
         },
       }),
       prisma.user.count({ where }),
@@ -45,13 +54,12 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// PATCH /api/users/:id (handled separately, but showing self-update here as POST)
+// POST /api/users
 export async function POST(req: NextRequest) {
   try {
-    const user = getUserFromRequest(req);
-    if (user.role !== "ADMIN") return errorResponse("Forbidden", 403);
+    const user = await getAuthUser(req);
+    if (!user || user.role !== "ADMIN") return errorResponse("Forbidden", 403);
 
-    // Admin creating a user directly
     const body = await req.json();
     const { name, email, password, role, phone } = body;
 

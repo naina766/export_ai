@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: export_ai_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: export_admin
+      POSTGRES_PASSWORD: export_password_123
+      POSTGRES_DB: export_ai_crm
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U export_admin -d export_ai_crm"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: export_ai_rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin123
+    ports:
+      - "5672:5672"     # AMQP protocol
+      - "15672:15672"   # Management Web UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: export_ai_app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://export_admin:export_password_123@postgres:5432/export_ai_crm?schema=public
+      - RABBITMQ_URL=amqp://admin:admin123@rabbitmq:5672
+      - NODE_ENV=production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: export_ai_worker
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql://export_admin:export_password_123@postgres:5432/export_ai_crm?schema=public
+      - RABBITMQ_URL=amqp://admin:admin123@rabbitmq:5672
+      - NODE_ENV=production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  rabbitmq_data:

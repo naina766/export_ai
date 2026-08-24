@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { successResponse, errorResponse, handleApiError, getUserFromRequest } from "@/lib/api";
+import { successResponse, errorResponse, handleApiError } from "@/lib/api";
+import { getAuthUser } from "@/lib/auth";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -10,9 +11,17 @@ export async function GET(_req: NextRequest, { params }: Params) {
     const user = await prisma.user.findUnique({
       where: { id },
       select: {
-        id: true, name: true, email: true, role: true, phone: true,
-        avatar: true, isActive: true, isApproved: true, lastLoginAt: true, createdAt: true,
-        _count: { select: { assignedLeads: true, deals: true, properties: true, tasks: true } },
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        phone: true,
+        avatar: true,
+        isActive: true,
+        isApproved: true,
+        lastLoginAt: true,
+        createdAt: true,
+        _count: { select: { assignedLeads: true, opportunities: true } },
       },
     });
     if (!user) return errorResponse("User not found", 404);
@@ -25,7 +34,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
-    const requester = getUserFromRequest(req);
+    const requester = await getAuthUser(req);
+    if (!requester) return errorResponse("Unauthorized", 401);
 
     // Users can update themselves; admins can update anyone
     if (requester.userId !== id && requester.role !== "ADMIN") {
@@ -61,8 +71,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 export async function DELETE(req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
-    const requester = getUserFromRequest(req);
-    if (requester.role !== "ADMIN") return errorResponse("Forbidden", 403);
+    const requester = await getAuthUser(req);
+    if (!requester || requester.role !== "ADMIN") return errorResponse("Forbidden", 403);
     if (requester.userId === id) return errorResponse("Cannot delete yourself", 400);
 
     await prisma.user.update({ where: { id }, data: { isActive: false } });

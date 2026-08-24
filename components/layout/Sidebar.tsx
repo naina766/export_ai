@@ -1,133 +1,170 @@
 "use client";
+import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
-import { cn } from "@/components/ui";
 import {
   LayoutDashboard,
+  Compass,
   Users,
-  Building2,
-  UserCheck,
-  Handshake,
-  MessageSquare,
+  Sparkles,
+  Kanban,
+  Receipt,
+  Clock,
+  Send,
+  FileText,
+  Package,
+  FolderLock,
   BarChart3,
+  FileSpreadsheet,
+  Cpu,
   Settings,
   ChevronLeft,
   ChevronRight,
-  Bell,
   LogOut,
-  Zap,
-  ShieldCheck,
+  Globe2,
 } from "lucide-react";
+import { cn } from "@/components/ui";
 
-const navItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/leads", label: "Leads", icon: Users },
-  { href: "/properties", label: "Properties", icon: Building2 },
-  { href: "/clients", label: "Clients", icon: UserCheck },
-  { href: "/deals", label: "Deals", icon: Handshake },
-  { href: "/communications", label: "Activity", icon: MessageSquare },
-  { href: "/agents", label: "Agents", icon: ShieldCheck },
-  { href: "/reports", label: "Reports", icon: BarChart3 },
-  { href: "/settings", label: "Settings", icon: Settings },
+const navGroups = [
+  {
+    label: "WORKSPACE",
+    items: [
+      { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+      { name: "Buyer Discovery", href: "/discovery", icon: Compass },
+      { name: "Buyer Leads", href: "/leads", icon: Users },
+      { name: "AI Insights", href: "/ai-insights", icon: Sparkles },
+    ],
+  },
+  {
+    label: "SALES",
+    items: [
+      { name: "Campaigns", href: "/campaigns", icon: Send },
+      { name: "Sales Pipeline", href: "/opportunities", icon: Kanban },
+      { name: "Quotations", href: "/quotations", icon: Receipt },
+      { name: "Follow-ups", href: "/follow-ups", icon: Clock },
+    ],
+  },
+  {
+    label: "CATALOG",
+    items: [
+      { name: "Products", href: "/products", icon: Package },
+      { name: "Documents", href: "/documents", icon: FolderLock },
+    ],
+  },
+  {
+    label: "OPERATIONS",
+    items: [
+      { name: "Analytics", href: "/analytics", icon: BarChart3 },
+      { name: "Reports", href: "/reports", icon: FileSpreadsheet },
+      { name: "Background Jobs", href: "/jobs", icon: Cpu },
+    ],
+  },
+  {
+    label: "SYSTEM",
+    items: [
+      { name: "Settings", href: "/settings", icon: Settings },
+    ],
+  },
 ];
 
-export default function Sidebar() {
+export function Sidebar({
+  isCollapsed,
+  setIsCollapsed,
+}: {
+  isCollapsed: boolean;
+  setIsCollapsed: (val: boolean) => void;
+}) {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
 
   return (
     <aside
       className={cn(
-        "relative flex flex-col h-screen bg-[#0f1117] border-r border-[#1e2a44] transition-all duration-300 ease-in-out flex-shrink-0 z-40",
-        collapsed ? "w-[68px]" : "w-60"
+        "fixed left-0 top-0 bottom-0 z-40 bg-[#080B10] border-r border-white/[0.06] flex flex-col justify-between transition-all duration-200 font-sans",
+        isCollapsed ? "w-[72px]" : "w-[240px]"
       )}
     >
-      {/* ── Logo ── */}
-      <div className={cn("flex items-center gap-3 px-4 h-16 border-b border-[#1e2a44]", collapsed && "justify-center px-0")}>
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-blue-500/30">
-          <Zap className="w-4 h-4 text-white" />
+      {/* ── Brand Header ── */}
+      <div>
+        <div className="h-14 px-4 border-b border-white/[0.06] flex items-center justify-between">
+          <Link href="/dashboard" className="flex items-center gap-2.5 overflow-hidden">
+            <div className="w-7 h-7 rounded-lg bg-[#6366F1] flex items-center justify-center text-white flex-shrink-0 font-bold shadow-xs">
+              <Globe2 className="w-4 h-4" />
+            </div>
+            {!isCollapsed && (
+              <div className="flex flex-col">
+                <span className="text-sm font-semibold tracking-tight text-[#F8FAFC]">EXPORT AI</span>
+                <span className="text-[11px] text-slate-400 font-mono tracking-tight">Export Intelligence OS</span>
+              </div>
+            )}
+          </Link>
+
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-white/[0.04] transition-colors"
+            title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+          >
+            {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          </button>
         </div>
-        {!collapsed && (
-          <div>
-            <span className="font-bold text-sm text-[#f1f5ff] tracking-tight">RealCRM</span>
-            <p className="text-[10px] text-[#4a5a80] -mt-0.5">Real Estate CRM</p>
-          </div>
-        )}
+
+        {/* ── Navigation Groups ── */}
+        <div className="py-3 px-2.5 space-y-5 overflow-y-auto max-h-[calc(100vh-140px)]">
+          {navGroups.map((group) => (
+            <div key={group.label} className="space-y-0.5">
+              {!isCollapsed && (
+                <span className="px-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1 font-mono">
+                  {group.label}
+                </span>
+              )}
+              {group.items.map((item) => {
+                const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    title={isCollapsed ? item.name : undefined}
+                    className={cn(
+                      "flex items-center gap-3 px-2.5 h-[38px] rounded-lg text-sm font-medium transition-colors relative group",
+                      isActive
+                        ? "bg-white/[0.06] text-white font-medium border-l-2 border-[#6366F1]"
+                        : "text-slate-400 hover:text-white hover:bg-white/[0.035]"
+                    )}
+                  >
+                    <Icon
+                      className={cn(
+                        "w-4 h-4 flex-shrink-0 transition-colors",
+                        isActive ? "text-[#6366F1]" : "text-slate-400 group-hover:text-white"
+                      )}
+                    />
+                    {!isCollapsed && <span className="truncate">{item.name}</span>}
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* ── Collapse toggle ── */}
-      <button
-        onClick={() => setCollapsed(!collapsed)}
-        className="absolute -right-3 top-[72px] w-6 h-6 rounded-full bg-[#1a2035] border border-[#2a3356] flex items-center justify-center text-[#8892b0] hover:text-[#f1f5ff] hover:border-[#4f8ef7] transition-all z-50 shadow-md"
-        aria-label="Toggle sidebar"
-      >
-        {collapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
-      </button>
-
-      {/* ── Navigation ── */}
-      <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-0.5">
-        {navItems.map(({ href, label, icon: Icon }) => {
-          const isActive = pathname === href || pathname.startsWith(href + "/");
-          return (
-            <Link
-              key={href}
-              href={href}
-              title={collapsed ? label : undefined}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group",
-                collapsed ? "justify-center" : "",
-                isActive
-                  ? "bg-gradient-to-r from-blue-500/15 to-violet-500/10 text-[#4f8ef7] border border-blue-500/20"
-                  : "text-[#8892b0] hover:text-[#f1f5ff] hover:bg-[#1a2035]"
-              )}
-            >
-              <Icon
-                className={cn(
-                  "w-4.5 h-4.5 flex-shrink-0 transition-transform group-hover:scale-110",
-                  isActive ? "text-[#4f8ef7]" : "text-[#4a5a80] group-hover:text-[#8892b0]"
-                )}
-                size={18}
-              />
-              {!collapsed && <span>{label}</span>}
-              {isActive && !collapsed && (
-                <span className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-400" />
-              )}
-            </Link>
-          );
-        })}
-      </nav>
-
-      {/* ── Bottom user area ── */}
-      <div className={cn("p-3 border-t border-[#1e2a44]", collapsed && "flex flex-col items-center gap-2")}>
-        <Link
-          href="/settings"
-          className={cn(
-            "flex items-center gap-3 p-2.5 rounded-xl hover:bg-[#1a2035] transition-all group",
-            collapsed && "justify-center"
-          )}
-        >
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0">
-            AD
+      {/* ── Footer / Status & Logout ── */}
+      <div className="p-3 border-t border-white/[0.06] bg-[#080B10] space-y-2">
+        {!isCollapsed && (
+          <div className="px-2.5 py-1.5 rounded-md bg-[#0B0F14] border border-white/[0.04] flex items-center justify-between text-xs font-mono">
+            <span className="flex items-center gap-1.5 text-slate-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E]" />
+              RabbitMQ
+            </span>
+            <span className="text-[#22C55E]">Connected</span>
           </div>
-          {!collapsed && (
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-[#f1f5ff] truncate">Admin User</p>
-              <p className="text-[10px] text-[#4a5a80] truncate">admin@realcrm.com</p>
-            </div>
-          )}
-        </Link>
-        <button
-          onClick={() => fetch("/api/auth/refresh", { method: "DELETE" }).then(() => (window.location.href = "/login"))}
-          className={cn(
-            "flex items-center gap-2 w-full px-2.5 py-2 rounded-xl text-xs text-red-400/70 hover:text-red-400 hover:bg-red-500/10 transition-all",
-            collapsed && "justify-center"
-          )}
-          title={collapsed ? "Logout" : undefined}
+        )}
+        <Link
+          href="/login"
+          className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-sm text-slate-400 hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors"
+          title={isCollapsed ? "Sign Out" : undefined}
         >
-          <LogOut size={14} />
-          {!collapsed && "Logout"}
-        </button>
+          <LogOut className="w-4 h-4 flex-shrink-0" />
+          {!isCollapsed && <span>Sign Out</span>}
+        </Link>
       </div>
     </aside>
   );

@@ -1,11 +1,14 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { successResponse, errorResponse, handleApiError, getPaginationParams, paginatedResponse, getUserFromRequest } from "@/lib/api";
+import { getAuthUser } from "@/lib/auth";
+import { successResponse, errorResponse, handleApiError, getPaginationParams } from "@/lib/api";
 
 // GET /api/notifications
 export async function GET(req: NextRequest) {
   try {
-    const user = getUserFromRequest(req);
+    const user = await getAuthUser(req);
+    if (!user) return errorResponse("Unauthorized", 401);
+
     const { page, limit, skip } = getPaginationParams(req.nextUrl.searchParams);
     const unreadOnly = req.nextUrl.searchParams.get("unread") === "true";
 
@@ -20,7 +23,7 @@ export async function GET(req: NextRequest) {
         skip,
         take: limit,
         orderBy: { createdAt: "desc" },
-        include: { lead: { select: { id: true, name: true } } },
+        include: { lead: { select: { id: true, companyName: true } } },
       }),
       prisma.notification.count({ where }),
       prisma.notification.count({ where: { userId: user.userId, isRead: false } }),
@@ -44,7 +47,9 @@ export async function GET(req: NextRequest) {
 // PATCH /api/notifications - mark all as read
 export async function PATCH(req: NextRequest) {
   try {
-    const user = getUserFromRequest(req);
+    const user = await getAuthUser(req);
+    if (!user) return errorResponse("Unauthorized", 401);
+
     await prisma.notification.updateMany({
       where: { userId: user.userId, isRead: false },
       data: { isRead: true },

@@ -1,11 +1,11 @@
-import Sidebar from "@/components/layout/Sidebar";
-import Navbar from "@/components/layout/Navbar";
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { AppShell } from "@/components/layout/AppShell";
 
 export const metadata: Metadata = {
-  title: { default: "Dashboard | RealCRM", template: "%s | RealCRM" },
+  title: { default: "Dashboard | EXPORT AI", template: "%s | EXPORT AI" },
+  description: "AI-Powered Export Sales & Buyer Outreach CRM",
 };
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -14,18 +14,5 @@ export default async function DashboardLayout({ children }: { children: React.Re
     redirect("/login");
   }
 
-  return (
-    <div className="flex h-screen overflow-hidden bg-[#0f1117]">
-      {/* Sidebar */}
-      <Sidebar />
-
-      {/* Main content */}
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-        <Navbar />
-        <main className="flex-1 overflow-y-auto p-6 animate-fade-in">
-          {children}
-        </main>
-      </div>
-    </div>
-  );
+  return <AppShell>{children}</AppShell>;
 }

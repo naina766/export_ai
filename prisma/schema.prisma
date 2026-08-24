@@ -1,7 +1,7 @@
-
 generator client {
   provider = "prisma-client-js"
 }
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -15,78 +15,130 @@ enum Role {
   AGENT
 }
 
-enum LeadStatus {
-  NEW
-  CONTACTED
-  QUALIFIED
-  CLOSED
-  LOST
+enum BuyerType {
+  BUSINESS
+  DISTRIBUTOR
+  STUDIO
+  RETAILER
+  INDIVIDUAL
+  UNKNOWN
 }
 
-enum LeadSource {
-  WEBSITE
-  REFERRAL
-  PORTAL
-  SOCIAL_MEDIA
-  COLD_CALL
-  WALK_IN
-  API_WEBHOOK
-  OTHER
+enum BuyerIntent {
+  HIGH
+  MEDIUM
+  LOW
+  UNKNOWN
 }
 
-enum PropertyType {
-  RESIDENTIAL
-  COMMERCIAL
-  INDUSTRIAL
-  LAND
-  MIXED_USE
+enum EmailStatus {
+  PENDING
+  VALID
+  INVALID
+  RISKY
+  UNKNOWN
 }
 
-enum PropertyStatus {
-  AVAILABLE
-  UNDER_OFFER
-  SOLD
-  RENTED
-  OFF_MARKET
+enum OutreachStatus {
+  NOT_CONTACTED
+  QUEUED
+  SENT
+  FAILED
+  REPLIED
+  UNSUBSCRIBED
 }
 
-enum ClientType {
-  BUYER
-  SELLER
-  BOTH
+enum ConsentStatus {
+  SUBSCRIBED
+  UNSUBSCRIBED
+  UNKNOWN
+  OPT_IN
 }
 
-enum DealStage {
+enum ProductCategory {
+  TIBETAN_HAND_HAMMERED
+  CHAKRA_SET_7
+  FULL_MOON_BOWL
+  CRYSTAL_QUARTZ
+  TEMPLE_GONG
+  ACCESSORIES
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  RUNNING
+  PAUSED
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum RecipientStatus {
+  PENDING
+  QUEUED
+  SENT
+  FAILED
+  BOUNCED
+  REPLIED
+  SKIPPED
+}
+
+enum OpportunityStage {
   PROSPECTING
+  QUALIFIED
+  CONTACTED
+  INTERESTED
   NEGOTIATION
-  AGREEMENT
-  DUE_DILIGENCE
+  QUOTATION
   CLOSED_WON
   CLOSED_LOST
+}
+
+enum TradeTerm {
+  FOB
+  CIF
+  EXW
+  CFR
+  DDP
+}
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
 }
 
 enum ActivityType {
   CALL
   EMAIL
   SMS
-  VISIT
   NOTE
   MEETING
+  VISIT
   TASK_COMPLETED
   STATUS_CHANGE
   DOCUMENT_UPLOAD
+  OPPORTUNITY_STAGE_CHANGE
   DEAL_STAGE_CHANGE
   LEAD_ASSIGNED
   FOLLOW_UP
+  QUOTATION_SENT
+  DISCOVERY_RUN
 }
 
 enum NotificationType {
   LEAD_ASSIGNED
   FOLLOW_UP_DUE
+  OPPORTUNITY_STAGE_CHANGE
   DEAL_STAGE_CHANGE
   TASK_DUE
   SYSTEM
-  PROPERTY_INTEREST
+  PROPERTY_CREATED
+  CAMPAIGN_COMPLETED
+  QUOTATION_ACCEPTED
 }
 
 enum TaskStatus {
@@ -97,11 +149,13 @@ enum TaskStatus {
 }
 
 enum DocumentType {
-  CONTRACT
-  AGREEMENT
-  IDENTITY_PROOF
-  PROPERTY_DEED
-  INSPECTION_REPORT
+  PRODUCT_CATALOG
+  BROCHURE
+  SPECIFICATION_SHEET
+  CERTIFICATE
+  LAB_REPORT
+  PRICE_LIST
+  INVOICE
   OTHER
 }
 
@@ -123,18 +177,20 @@ model User {
   updatedAt       DateTime  @updatedAt
 
   // Relations
-  assignedLeads      Lead[]         @relation("AgentLeads")
-  createdLeads       Lead[]         @relation("CreatedLeads")
-  properties         Property[]     @relation("AgentProperties")
-  deals              Deal[]         @relation("AgentDeals")
-  activities         Activity[]
-  notifications      Notification[]
-  tasks              Task[]         @relation("AssignedTasks")
-  createdTasks       Task[]         @relation("CreatedTasks")
-  auditLogs          AuditLog[]
-  managedClients     Client[]
-  refreshTokens      RefreshToken[]
-  followUps          FollowUp[]
+  assignedLeads       BuyerLead[]        @relation("AgentLeads")
+  createdLeads        BuyerLead[]        @relation("CreatedLeads")
+  opportunities       SalesOpportunity[] @relation("AgentOpportunities")
+  activities          Activity[]
+  notifications       Notification[]
+  tasks               Task[]             @relation("AssignedTasks")
+  createdTasks        Task[]             @relation("CreatedTasks")
+  auditLogs           AuditLog[]
+  refreshTokens       RefreshToken[]
+  followUps           FollowUp[]
+  emailAccounts       EmailAccount[]
+  createdCampaigns    Campaign[]         @relation("CreatedCampaigns")
+  createdQuotations   Quotation[]        @relation("CreatedQuotations")
+  createdTemplates    EmailTemplate[]    @relation("CreatedTemplates")
 
   @@map("users")
 }
@@ -150,203 +206,438 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
-model Lead {
-  id              String     @id @default(cuid())
-  name            String
-  phone           String
-  email           String?
-  budget          Decimal?   @db.Decimal(15, 2)
-  source          LeadSource @default(WEBSITE)
-  status          LeadStatus @default(NEW)
-  notes           String?
-  score           Int        @default(0) // AI lead score 0-100
-  preferences     Json?      // bedrooms, location pref, amenities etc.
-  tags            String[]
-
-  assignedToId    String?
-  assignedTo      User?      @relation("AgentLeads", fields: [assignedToId], references: [id])
-  createdById     String?
-  createdBy       User?      @relation("CreatedLeads", fields: [createdById], references: [id])
-
-  clientId        String?
-  client          Client?    @relation(fields: [clientId], references: [id])
-
-  activities      Activity[]
-  followUps       FollowUp[]
-  notifications   Notification[]
-  deals           Deal[]
-
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
-
-  @@map("leads")
-}
-
-model Property {
-  id              String         @id @default(cuid())
-  title           String
-  description     String?
-  type            PropertyType
-  status          PropertyStatus @default(AVAILABLE)
-
-  // Location
-  address         String
-  city            String
-  state           String
-  country         String         @default("India")
-  pincode         String?
-  latitude        Float?
-  longitude       Float?
-
-  // Details
-  price           Decimal        @db.Decimal(15, 2)
-  size            Float?         // sq ft / sq m
-  bedrooms        Int?
-  bathrooms       Int?
-  floors          Int?
-  yearBuilt       Int?
-  amenities       String[]
-  features        Json?          // parking, pool, gym etc.
-
-  // Media
-  images          Document[]     @relation("PropertyImages")
-  thumbnailUrl    String?
+model Product {
+  id                 String          @id @default(cuid())
+  name               String
+  slug               String          @unique
+  sku                String          @unique
+  category           ProductCategory @default(TIBETAN_HAND_HAMMERED)
+  description        String?
+  shortDescription   String?
+  material           String          @default("7-Metal Bronze Alloy")
+  frequency          String?         // e.g. "432 Hz / Note F (Heart Chakra)"
+  diameter           String?         // e.g. "8-10 inches / 20-25 cm"
+  weight             String?         // e.g. "1.2 - 1.5 kg"
+  priceMin           Decimal         @db.Decimal(12, 2)
+  priceMax           Decimal?        @db.Decimal(12, 2)
+  currency           String          @default("USD")
+  moq                Int             @default(10) // Minimum Order Quantity (pcs/sets)
+  stockQuantity      Int             @default(100)
+  availableForExport Boolean         @default(true)
+  exportMarkets      String[]        @default(["USA", "UK", "Germany", "Canada", "Australia", "Japan"])
+  specifications     Json?           // Custom attributes, tuning, accessories included
+  featured           Boolean         @default(false)
+  thumbnailUrl       String?
 
   // Relations
-  agentId         String?
-  agent           User?          @relation("AgentProperties", fields: [agentId], references: [id])
-  deals           Deal[]
-  activities      Activity[]
+  images             Document[]      @relation("ProductImages")
+  campaigns          Campaign[]      @relation("ProductCampaigns")
+  quotationItems     QuotationItem[]
+  opportunities      SalesOpportunity[]
 
-  isFeatured      Boolean        @default(false)
-  viewCount       Int            @default(0)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
 
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-
-  @@map("properties")
+  @@map("products")
 }
 
-model Client {
-  id              String     @id @default(cuid())
-  name            String
-  email           String?
-  phone           String
-  type            ClientType @default(BUYER)
-  preferences     Json?      // preferred locations, budget range, property type
-  notes           String?
-  tags            String[]
+model BuyerLead {
+  id                 String          @id @default(cuid())
+  companyName        String
+  contactPerson      String?
+  email              String
+  normalizedEmail    String          @unique
+  phone              String?
+  website            String?
+  country            String
+  city               String?
 
-  agentId         String?
-  agent           User?      @relation(fields: [agentId], references: [id])
+  source             String          @default("WEBSITE")
+  sourcePlatform     String?         // GOOGLE, DIRECTORY, LINKEDIN, WEBSITE, CSV
+  sourceExternalId   String?         // external provider unique ref
 
-  leads           Lead[]
-  deals           Deal[]
-  activities      Activity[]
-  followUps       FollowUp[]
-  documents       Document[] @relation("ClientDocuments")
+  buyerType          BuyerType       @default(UNKNOWN)
+  buyerIntent        BuyerIntent     @default(UNKNOWN)
+  industry           String?         // Wellness, Sound Healing, Yoga Studio, Gift Shop
+  productInterest    String?         // Tibetan Singing Bowls, Chakra Sets
 
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
+  leadScore          Int             @default(0) // 0 - 100
+  aiConfidence       Float?          // 0.0 - 1.0
+  aiReasoning        String?
+  aiModel            String?
+  aiProcessedAt      DateTime?
 
-  @@map("clients")
-}
+  emailStatus        EmailStatus     @default(PENDING)
+  verificationStatus String?         // Syntax OK, MX Verified, Disposable Blocked
+  outreachStatus     OutreachStatus  @default(NOT_CONTACTED)
 
-model Deal {
-  id                String    @id @default(cuid())
-  title             String
-  stage             DealStage @default(PROSPECTING)
-  amount            Decimal?  @db.Decimal(15, 2)
-  commissionRate    Float     @default(2.0) // percentage
-  commissionAmount  Decimal?  @db.Decimal(15, 2)
-  expectedCloseDate DateTime?
-  closedAt          DateTime?
-  notes             String?
+  unsubscribeStatus  Boolean         @default(false)
+  consentStatus      ConsentStatus   @default(UNKNOWN)
+
+  lastContactedAt    DateTime?
+  tags               String[]        @default([])
+  notes              String?
+  metadata           Json?
+
+  assignedToId       String?
+  assignedTo         User?           @relation("AgentLeads", fields: [assignedToId], references: [id])
+  createdById        String?
+  createdBy          User?           @relation("CreatedLeads", fields: [createdById], references: [id])
 
   // Relations
-  clientId    String
-  client      Client     @relation(fields: [clientId], references: [id])
-  propertyId  String?
-  property    Property?  @relation(fields: [propertyId], references: [id])
-  agentId     String?
-  agent       User?      @relation("AgentDeals", fields: [agentId], references: [id])
-  leadId      String?
-  lead        Lead?      @relation(fields: [leadId], references: [id])
+  campaignRecipients CampaignRecipient[]
+  personalizedEmails PersonalizedEmail[]
+  emailLogs          EmailLog[]
+  opportunities      SalesOpportunity[]
+  quotations         Quotation[]
+  activities         Activity[]
+  followUps          FollowUp[]
+  notifications      Notification[]
 
-  documents   Document[] @relation("DealDocuments")
-  activities  Activity[]
-  tasks       Task[]
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  @@unique([sourcePlatform, sourceExternalId])
+  @@index([country])
+  @@index([leadScore])
+  @@index([emailStatus])
+  @@index([outreachStatus])
+  @@map("buyer_leads")
+}
+
+model DiscoveryJob {
+  id              String   @id @default(cuid())
+  productKeyword  String   @default("Singing Bowls")
+  targetCountries String[] @default(["USA", "UK", "Germany", "Canada"])
+  buyerType       String   @default("BUSINESS")
+  sources         String[] @default(["Google", "Directories", "Websites"])
+  maxResults      Int      @default(50)
+  status          String   @default("PENDING") // PENDING, RUNNING, COMPLETED, FAILED, CANCELLED
+  progress        Int      @default(0) // 0-100
+  leadsFound      Int      @default(0)
+  error           String?
+  userId          String?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("discovery_jobs")
+}
+
+model OutboxEvent {
+  id            String    @id @default(cuid())
+  eventKey      String    @unique
+  eventType     String    // DISCOVERY_START, VALIDATION_EMAIL, AI_CLASSIFY, CAMPAIGN_SEND, REPORT_GENERATE
+  aggregateType String    // DiscoveryJob, BuyerLead, Campaign, Report
+  aggregateId   String
+  payload       Json
+  status        String    @default("PENDING") // PENDING, PUBLISHED, FAILED
+  attempts      Int       @default(0)
+  error         String?
+  publishedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([status])
+  @@map("outbox_events")
+}
+
+model Campaign {
+  id                 String          @id @default(cuid())
+  name               String
+  description        String?
+  subject            String
+  templateId         String?
+  template           EmailTemplate?  @relation(fields: [templateId], references: [id])
+  productId          String?
+  product            Product?        @relation("ProductCampaigns", fields: [productId], references: [id])
+  status             CampaignStatus  @default(DRAFT)
+
+  totalRecipients    Int             @default(0)
+  sentCount          Int             @default(0)
+  failedCount        Int             @default(0)
+  repliedCount       Int             @default(0)
+
+  dailyLimit         Int             @default(200)
+  emailsPerMinute    Int             @default(10)
+  delayBetweenEmails Int             @default(5000) // milliseconds
+
+  scheduledAt        DateTime?
+  startedAt          DateTime?
+  completedAt        DateTime?
+
+  createdById        String?
+  createdBy          User?           @relation("CreatedCampaigns", fields: [createdById], references: [id])
+
+  // Relations
+  recipients         CampaignRecipient[]
+  personalizedEmails PersonalizedEmail[]
+  attachments        CampaignAttachment[]
+  emailLogs          EmailLog[]
+
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  @@index([status])
+  @@map("campaigns")
+}
+
+model CampaignAttachment {
+  id         String   @id @default(cuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  createdAt  DateTime @default(now())
+
+  @@unique([campaignId, documentId])
+  @@map("campaign_attachments")
+}
+
+model CampaignRecipient {
+  id                String          @id @default(cuid())
+  campaignId        String
+  campaign          Campaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  leadId            String
+  lead              BuyerLead       @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  status            RecipientStatus @default(PENDING)
+  queuedAt          DateTime?
+  sentAt            DateTime?
+  failedAt          DateTime?
+  errorMessage      String?
+  providerMessageId String?
+  openedAt          DateTime?
+  repliedAt         DateTime?
+
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@unique([campaignId, leadId])
+  @@index([status])
+  @@map("campaign_recipients")
+}
+
+model PersonalizedEmail {
+  id          String    @id @default(cuid())
+  campaignId  String
+  campaign    Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  leadId      String
+  lead        BuyerLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  subject     String
+  bodyHtml    String    @db.Text
+  bodyText    String    @db.Text
+
+  aiGenerated Boolean   @default(false)
+  isApproved  Boolean   @default(true) // Human approval gate
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([campaignId, leadId])
+  @@map("personalized_emails")
+}
+
+model EmailTemplate {
+  id          String     @id @default(cuid())
+  name        String
+  subject     String
+  body        String     @db.Text
+  variables   String[]   @default(["firstName", "companyName", "country", "productName", "website", "aiPersonalizedIntro"])
+  category    String     @default("Export Sales Outreach")
+  isDefault   Boolean    @default(false)
+
+  createdById String?
+  createdBy   User?      @relation("CreatedTemplates", fields: [createdById], references: [id])
+
+  campaigns   Campaign[]
 
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
-  @@map("deals")
+  @@map("email_templates")
+}
+
+model EmailLog {
+  id                String    @id @default(cuid())
+  idempotencyKey    String    @unique
+  recipientEmail    String
+  senderEmail       String
+  subject           String
+  status            String    // SENT, FAILED, BOUNCED, SKIPPED
+  providerMessageId String?
+  error             String?
+
+  campaignId        String?
+  campaign          Campaign? @relation(fields: [campaignId], references: [id])
+  leadId            String?
+  lead              BuyerLead? @relation(fields: [leadId], references: [id])
+
+  sentAt            DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+
+  @@index([recipientEmail])
+  @@index([status])
+  @@map("email_logs")
+}
+
+model EmailAccount {
+  id                    String    @id @default(cuid())
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider              String    @default("GOOGLE")
+  providerAccountId     String?
+  email                 String
+  accessTokenEncrypted  String    @db.Text
+  refreshTokenEncrypted String    @db.Text
+  tokenExpiry           DateTime?
+  scopes                String[]  @default(["https://www.googleapis.com/auth/gmail.send", "https://www.googleapis.com/auth/gmail.readonly"])
+  isConnected           Boolean   @default(true)
+  lastSyncAt            DateTime?
+
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([userId, provider])
+  @@map("email_accounts")
+}
+
+model SalesOpportunity {
+  id                String           @id @default(cuid())
+  title             String
+  stage             OpportunityStage @default(PROSPECTING)
+  inquiryValue      Decimal?         @db.Decimal(15, 2)
+  currency          String           @default("USD")
+  quantity          Int?             // Estimated order quantity (pcs)
+  terms             TradeTerm        @default(FOB)
+  expectedCloseDate DateTime?
+  closedAt          DateTime?
+  lostReason        String?
+  notes             String?
+
+  // Relations
+  leadId            String
+  lead              BuyerLead        @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  productId         String?
+  product           Product?         @relation(fields: [productId], references: [id])
+  assignedToId      String?
+  assignedTo        User?            @relation("AgentOpportunities", fields: [assignedToId], references: [id])
+
+  quotations        Quotation[]
+  documents         Document[]       @relation("OpportunityDocuments")
+  activities        Activity[]
+  tasks             Task[]
+
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@index([stage])
+  @@map("sales_opportunities")
+}
+
+model Quotation {
+  id              String          @id @default(cuid())
+  quotationNumber String          @unique // e.g. EXP-2026-000001
+  status          QuotationStatus @default(DRAFT)
+  currency        String          @default("USD")
+  subtotal        Decimal         @db.Decimal(15, 2)
+  shippingCost    Decimal         @default(0.00) @db.Decimal(15, 2)
+  total           Decimal         @db.Decimal(15, 2)
+  tradeTerm       TradeTerm       @default(FOB)
+  validUntil      DateTime
+  notes           String?
+
+  // Relations
+  opportunityId   String?
+  opportunity     SalesOpportunity? @relation(fields: [opportunityId], references: [id])
+  leadId          String
+  lead            BuyerLead       @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  createdById     String?
+  createdBy       User?           @relation("CreatedQuotations", fields: [createdById], references: [id])
+
+  items           QuotationItem[]
+
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@map("quotations")
+}
+
+model QuotationItem {
+  id          String    @id @default(cuid())
+  quotationId String
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  productId   String?
+  product     Product?  @relation(fields: [productId], references: [id])
+  productName String
+  quantity    Int       @default(1)
+  unitPrice   Decimal   @db.Decimal(12, 2)
+  total       Decimal   @db.Decimal(15, 2)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("quotation_items")
 }
 
 model Activity {
-  id          String       @id @default(cuid())
-  type        ActivityType
-  title       String
-  description String?
-  metadata    Json?        // extra data like call duration, email subject etc.
+  id            String            @id @default(cuid())
+  type          ActivityType
+  title         String
+  description   String?
+  metadata      Json?
 
-  // Polymorphic relations
-  userId      String?
-  user        User?        @relation(fields: [userId], references: [id])
-  leadId      String?
-  lead        Lead?        @relation(fields: [leadId], references: [id])
-  clientId    String?
-  client      Client?      @relation(fields: [clientId], references: [id])
-  dealId      String?
-  deal        Deal?        @relation(fields: [dealId], references: [id])
-  propertyId  String?
-  property    Property?    @relation(fields: [propertyId], references: [id])
+  userId        String?
+  user          User?             @relation(fields: [userId], references: [id])
+  leadId        String?
+  lead          BuyerLead?        @relation(fields: [leadId], references: [id])
+  opportunityId String?
+  opportunity   SalesOpportunity? @relation(fields: [opportunityId], references: [id])
 
-  createdAt   DateTime     @default(now())
+  createdAt     DateTime          @default(now())
 
   @@map("activities")
 }
 
 model FollowUp {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   title        String
   notes        String?
   scheduledAt  DateTime
   completedAt  DateTime?
-  isCompleted  Boolean  @default(false)
-  reminderSent Boolean  @default(false)
+  isCompleted  Boolean   @default(false)
+  reminderSent Boolean   @default(false)
 
-  userId    String
-  user      User    @relation(fields: [userId], references: [id])
-  leadId    String?
-  lead      Lead?   @relation(fields: [leadId], references: [id])
-  clientId  String?
-  client    Client? @relation(fields: [clientId], references: [id])
+  userId       String
+  user         User      @relation(fields: [userId], references: [id])
+  leadId       String?
+  lead         BuyerLead? @relation(fields: [leadId], references: [id])
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@map("follow_ups")
 }
 
 model Document {
-  id          String       @id @default(cuid())
-  name        String
-  url         String
-  publicId    String       // Cloudinary public ID
-  mimeType    String?
-  size        Int?         // bytes
-  type        DocumentType @default(OTHER)
+  id                  String               @id @default(cuid())
+  name                String
+  url                 String
+  publicId            String               // Cloudinary public ID
+  mimeType            String?
+  size                Int?                 // bytes
+  type                DocumentType         @default(OTHER)
 
-  // Polymorphic
-  dealId      String?
-  deal        Deal?     @relation("DealDocuments", fields: [dealId], references: [id])
-  propertyId  String?
-  property    Property? @relation("PropertyImages", fields: [propertyId], references: [id])
-  clientId    String?
-  client      Client?   @relation("ClientDocuments", fields: [clientId], references: [id])
+  productId           String?
+  product             Product?             @relation("ProductImages", fields: [productId], references: [id])
+  opportunityId       String?
+  opportunity         SalesOpportunity?    @relation("OpportunityDocuments", fields: [opportunityId], references: [id])
 
-  createdAt   DateTime  @default(now())
+  campaignAttachments CampaignAttachment[]
+
+  createdAt           DateTime             @default(now())
 
   @@map("documents")
 }
@@ -360,41 +651,41 @@ model Notification {
   metadata  Json?
 
   userId    String
-  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   leadId    String?
-  lead      Lead?  @relation(fields: [leadId], references: [id])
+  lead      BuyerLead?       @relation(fields: [leadId], references: [id])
 
-  createdAt DateTime @default(now())
+  createdAt DateTime         @default(now())
 
   @@map("notifications")
 }
 
 model Task {
-  id          String     @id @default(cuid())
-  title       String
-  description String?
-  status      TaskStatus @default(PENDING)
-  priority    Int        @default(2) // 1=Low 2=Medium 3=High
-  dueDate     DateTime?
-  completedAt DateTime?
+  id            String            @id @default(cuid())
+  title         String
+  description   String?
+  status        TaskStatus        @default(PENDING)
+  priority      Int               @default(2) // 1=Low 2=Medium 3=High
+  dueDate       DateTime?
+  completedAt   DateTime?
 
   assignedToId  String?
-  assignedTo    User?   @relation("AssignedTasks", fields: [assignedToId], references: [id])
+  assignedTo    User?             @relation("AssignedTasks", fields: [assignedToId], references: [id])
   createdById   String?
-  createdBy     User?   @relation("CreatedTasks", fields: [createdById], references: [id])
-  dealId        String?
-  deal          Deal?   @relation(fields: [dealId], references: [id])
+  createdBy     User?             @relation("CreatedTasks", fields: [createdById], references: [id])
+  opportunityId String?
+  opportunity   SalesOpportunity? @relation(fields: [opportunityId], references: [id])
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 
   @@map("tasks")
 }
 
 model AuditLog {
   id        String   @id @default(cuid())
-  action    String   // CREATE, UPDATE, DELETE, LOGIN etc.
-  entity    String   // User, Lead, Property etc.
+  action    String   // CREATE, UPDATE, DELETE, LOGIN, EXPORT_SEND etc.
+  entity    String   // BuyerLead, Product, Quotation, Campaign etc.
   entityId  String?
   oldData   Json?
   newData   Json?
@@ -402,9 +693,44 @@ model AuditLog {
   userAgent String?
 
   userId    String?
-  user      User?   @relation(fields: [userId], references: [id])
+  user      User?    @relation(fields: [userId], references: [id])
 
   createdAt DateTime @default(now())
 
   @@map("audit_logs")
+}
+
+model WebhookEvent {
+  id          String    @id @default(cuid())
+  provider    String
+  eventType   String
+  externalId  String?
+  payload     Json
+  status      String    @default("PENDING") // PENDING, PROCESSED, FAILED
+  processedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([provider, eventType])
+  @@map("webhook_events")
+}
+
+model JobLog {
+  id            String    @id @default(cuid())
+  jobId         String
+  correlationId String
+  queue         String
+  type          String
+  status        String    // QUEUED, RUNNING, COMPLETED, FAILED, RETRYING
+  attempts      Int       @default(1)
+  payload       Json?
+  result        Json?
+  error         String?
+  durationMs    Int?
+  startedAt     DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([queue, status])
+  @@index([correlationId])
+  @@map("job_logs")
 }

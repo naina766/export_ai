@@ -1,9 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
-import {
-  CreateLeadSchema,
-} from "@/lib/validations";
+import { CreateBuyerLeadSchema } from "@/lib/validations";
 import {
   successResponse,
   errorResponse,
@@ -11,7 +9,9 @@ import {
   getPaginationParams,
   paginatedResponse,
 } from "@/lib/api";
-import type { LeadSource, LeadStatus } from "@prisma/client";
+import { validateEmailAddress } from "@/lib/email/validator";
+import { createOutboxEvent } from "@/lib/rabbitmq/outbox";
+import type { BuyerType, EmailStatus, OutreachStatus } from "@prisma/client";
 
 // ======================
 // GET /api/leads
@@ -24,31 +24,31 @@ export async function GET(req: NextRequest) {
     const { page, limit, skip, search, sortBy, sortOrder } =
       getPaginationParams(req.nextUrl.searchParams);
 
-    const status = req.nextUrl.searchParams.get("status") as LeadStatus | null;
-    const source = req.nextUrl.searchParams.get("source") as LeadSource | null;
-    const assignedToId = req.nextUrl.searchParams.get("assignedToId");
+    const country = req.nextUrl.searchParams.get("country");
+    const buyerType = req.nextUrl.searchParams.get("buyerType") as BuyerType | null;
+    const emailStatus = req.nextUrl.searchParams.get("emailStatus") as EmailStatus | null;
+    const outreachStatus = req.nextUrl.searchParams.get("outreachStatus") as OutreachStatus | null;
+    const minScore = req.nextUrl.searchParams.get("minScore");
 
-    const where: {
-      OR?: Array<{ name: { contains: string; mode: "insensitive" } } | { email: { contains: string; mode: "insensitive" } } | { phone: { contains: string; mode: "insensitive" } }>;
-      status?: LeadStatus;
-      source?: LeadSource;
-      assignedToId?: string;
-    } = {
+    const where: Record<string, unknown> = {
       ...(search && {
         OR: [
-          { name: { contains: search, mode: "insensitive" } },
+          { companyName: { contains: search, mode: "insensitive" } },
+          { contactPerson: { contains: search, mode: "insensitive" } },
           { email: { contains: search, mode: "insensitive" } },
-          { phone: { contains: search, mode: "insensitive" } },
+          { country: { contains: search, mode: "insensitive" } },
+          { industry: { contains: search, mode: "insensitive" } },
         ],
       }),
-      ...(status && { status }),
-      ...(source && { source }),
-      ...(user.role === "AGENT" && { assignedToId: user.userId }),
-      ...(assignedToId && user.role !== "AGENT" && { assignedToId }),
+      ...(country && { country: { equals: country, mode: "insensitive" } }),
+      ...(buyerType && { buyerType }),
+      ...(emailStatus && { emailStatus }),
+      ...(outreachStatus && { outreachStatus }),
+      ...(minScore && { leadScore: { gte: parseInt(minScore) } }),
     };
 
     const [leads, total] = await Promise.all([
-      prisma.lead.findMany({
+      prisma.buyerLead.findMany({
         where,
         skip,
         take: limit,
@@ -57,11 +57,12 @@ export async function GET(req: NextRequest) {
           assignedTo: {
             select: { id: true, name: true, email: true, avatar: true },
           },
-          client: { select: { id: true, name: true } },
-          _count: { select: { activities: true, followUps: true } },
+          _count: {
+            select: { activities: true, followUps: true, opportunities: true },
+          },
         },
       }),
-      prisma.lead.count({ where }),
+      prisma.buyerLead.count({ where }),
     ]);
 
     return paginatedResponse(leads, total, page, limit);
@@ -79,86 +80,64 @@ export async function POST(req: NextRequest) {
     if (!user) return errorResponse("Unauthorized", 401);
 
     const body = await req.json();
-
-    const parsed = CreateLeadSchema.safeParse(body);
+    const parsed = CreateBuyerLeadSchema.safeParse(body);
     if (!parsed.success) {
       return errorResponse("Validation failed", 400, parsed.error.flatten());
     }
 
-    const { preferences, ...rest } = parsed.data;
+    const { email, ...rest } = parsed.data;
+    const emailValidation = validateEmailAddress(email);
 
-    const lead = await prisma.lead.create({
-      data: {
-        name: rest.name,
-        phone: rest.phone,
-        email: rest.email,
-        budget: rest.budget,
-        source: rest.source,
-        notes: rest.notes,
-        tags: rest.tags,
-        ...(preferences && { preferences: JSON.parse(JSON.stringify(preferences)) }),
-        createdById: user.userId,
-        assignedToId: rest.assignedToId || user.userId,
-      },
-      include: {
-        assignedTo: { select: { id: true, name: true, email: true } },
-        createdBy: { select: { id: true, name: true } },
-      },
+    // Check duplicate normalized email
+    const existing = await prisma.buyerLead.findUnique({
+      where: { normalizedEmail: emailValidation.normalizedEmail },
     });
 
-     try {
-      await fetch("https://agnayi2026.app.n8n.cloud/webhook/lead-create", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-webhook-secret": process.env.WEBHOOK_SECRET!
-        },
-        body: JSON.stringify({
-          name: lead.name,
-          email: lead.email,
-          phone: lead.phone,
-          budget: lead.budget,
-        }),
-      });
-    } catch (err) {
-      console.error("n8n webhook failed:", err);
+    if (existing) {
+      return errorResponse(`A buyer lead with email ${email} already exists.`, 409);
     }
-    // Activity log
+
+    const lead = await prisma.$transaction(async (tx) => {
+      const created = await tx.buyerLead.create({
+        data: {
+          ...rest,
+          email: emailValidation.email,
+          normalizedEmail: emailValidation.normalizedEmail,
+          emailStatus: emailValidation.status,
+          verificationStatus: emailValidation.reason,
+          createdById: user.userId,
+          assignedToId: rest.assignedToId || user.userId,
+        },
+        include: {
+          assignedTo: { select: { id: true, name: true, email: true } },
+          createdBy: { select: { id: true, name: true } },
+        },
+      });
+
+      // Create AI qualification outbox event
+      await createOutboxEvent(tx, {
+        eventKey: `lead:${created.id}:classify`,
+        eventType: "AI_CLASSIFY",
+        aggregateType: "BuyerLead",
+        aggregateId: created.id,
+        payload: { leadId: created.id },
+      });
+
+      return created;
+    });
+
+    // Create Activity Log
     await prisma.activity.create({
       data: {
         type: "NOTE",
-        title: "Lead created",
-        description: `Lead ${lead.name} created`,
+        title: "Buyer lead added",
+        description: `New export prospect ${lead.companyName} (${lead.country}) created.`,
         userId: user.userId,
         leadId: lead.id,
       },
     });
 
-    // Notification
-    if (lead.assignedToId && lead.assignedToId !== user.userId) {
-      await prisma.notification.create({
-        data: {
-          type: "LEAD_ASSIGNED",
-          title: "New lead assigned",
-          message: `You have been assigned a new lead: ${lead.name}`,
-          userId: lead.assignedToId,
-          leadId: lead.id,
-        },
-      });
-    }
-
-    // Audit log
-    await prisma.auditLog.create({
-      data: {
-        action: "CREATE",
-        entity: "Lead",
-        entityId: lead.id,
-        newData: { name: lead.name, source: lead.source },
-        userId: user.userId,
-      },
-    });
-
-    return successResponse(lead, "Lead created successfully", 201);
+    return successResponse(lead, "Buyer lead created successfully", 201);
   } catch (error) {
     return handleApiError(error);
   }

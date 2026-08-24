@@ -1,86 +1,77 @@
 import { NextRequest } from "next/server";
+import { v2 as cloudinary } from "cloudinary";
 import { prisma } from "@/lib/prisma";
-import { uploadToCloudinary } from "@/lib/cloudinary";
-import { successResponse, errorResponse, handleApiError, getUserFromRequest } from "@/lib/api";
+import { getAuthUser } from "@/lib/auth";
+import { successResponse, errorResponse, handleApiError } from "@/lib/api";
+import { DocumentType } from "@prisma/client";
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 export async function POST(req: NextRequest) {
   try {
-    const user = getUserFromRequest(req);
+    const user = await getAuthUser(req);
+    if (!user) return errorResponse("Unauthorized", 401);
+
     const formData = await req.formData();
-    const file = formData.get("file") as File;
-    const folder = (formData.get("folder") as string) || "documents";
-    const entityType = formData.get("entityType") as string;
-    const entityId = formData.get("entityId") as string;
-    const docType = (formData.get("type") as string) || "OTHER";
+    const file = formData.get("file") as File | null;
+    const entityType = formData.get("entityType") as string | null;
+    const entityId = formData.get("entityId") as string | null;
 
     if (!file) return errorResponse("No file provided", 400);
 
-    const maxSize = 20 * 1024 * 1024; // 20MB
-    if (file.size > maxSize) return errorResponse("File size exceeds 20MB limit", 400);
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
 
-    const allowedTypes = [
-      "image/jpeg", "image/jpg", "image/png", "image/webp",
-      "application/pdf", "application/msword",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    ];
-    if (!allowedTypes.includes(file.type)) {
-      return errorResponse("File type not allowed", 400);
-    }
-
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const isImage = file.type.startsWith("image/");
-
-    const result = await uploadToCloudinary(
-      buffer,
-      folder as any,
-      {
-        resourceType: isImage ? "image" : "raw",
-        transformation: isImage
-          ? [{ quality: "auto", fetch_format: "auto" }]
-          : undefined,
-      }
-    );
-
-    // Save document record to DB
-    const document = await prisma.document.create({
-      data: {
-        name: file.name,
-        url: result.url,
-        publicId: result.publicId,
-        mimeType: file.type,
-        size: file.size,
-        type: docType as any,
-        ...(entityType === "deal" && entityId && { dealId: entityId }),
-        ...(entityType === "property" && entityId && { propertyId: entityId }),
-        ...(entityType === "client" && entityId && { clientId: entityId }),
-      },
+    const uploadResult = await new Promise<{
+      secure_url: string;
+      public_id: string;
+      bytes: number;
+    }>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          folder: "export-ai/products",
+          resource_type: "auto",
+        },
+        (error, result) => {
+          if (error || !result) reject(error || new Error("Upload failed"));
+          else resolve(result);
+        }
+      );
+      stream.end(buffer);
     });
 
-    // If property image, set thumbnail if first image
-    if (entityType === "property" && entityId && isImage) {
-      const property = await prisma.property.findUnique({ where: { id: entityId } });
-      if (property && !property.thumbnailUrl) {
-        await prisma.property.update({
+    if (entityType === "PRODUCT" && entityId) {
+      const product = await prisma.product.findUnique({ where: { id: entityId } });
+      if (product) {
+        await prisma.document.create({
+          data: {
+            name: file.name,
+            url: uploadResult.secure_url,
+            publicId: uploadResult.public_id,
+            size: uploadResult.bytes,
+            type: DocumentType.BROCHURE,
+            productId: entityId,
+          },
+        });
+        await prisma.product.update({
           where: { id: entityId },
-          data: { thumbnailUrl: result.url },
+          data: { thumbnailUrl: uploadResult.secure_url },
         });
       }
     }
 
-    // Log activity
-    await prisma.activity.create({
-      data: {
-        type: "DOCUMENT_UPLOAD",
-        title: "Document uploaded",
-        description: `File "${file.name}" uploaded`,
-        userId: user.userId,
-        ...(entityType === "deal" && { dealId: entityId }),
-        ...(entityType === "property" && { propertyId: entityId }),
-        ...(entityType === "client" && { clientId: entityId }),
+    return successResponse(
+      {
+        url: uploadResult.secure_url,
+        publicId: uploadResult.public_id,
+        size: uploadResult.bytes,
       },
-    });
-
-    return successResponse(document, "File uploaded successfully", 201);
+      "File uploaded successfully"
+    );
   } catch (error) {
     return handleApiError(error);
   }

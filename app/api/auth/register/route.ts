@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
         password: hashedPassword,
         phone,
         role: isFirstUser ? "ADMIN" : role || "AGENT",
-        isApproved: isFirstUser,
+        isApproved: true,
       },
       select: {
         id: true,
@@ -64,14 +64,6 @@ export async function POST(req: NextRequest) {
         ipAddress: req.headers.get("x-forwarded-for") || "unknown",
       },
     });
-
-    if (!user.isApproved) {
-      return successResponse(
-        { user },
-        "Registration successful. Awaiting admin approval.",
-        201
-      );
-    }
 
     const tokenPayload = {
       userId: user.id,
