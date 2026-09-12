@@ -12,9 +12,16 @@ import {
   errorResponse,
   handleApiError,
 } from "@/lib/api";
+import { rateLimiter } from "@/lib/security/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() || "local";
+    const rl = rateLimiter.check(`login:${ip}`, 10, 60 * 1000);
+    if (!rl.success) {
+      return errorResponse("Too many login attempts. Please wait 1 minute before trying again.", 429);
+    }
+
     const body = await req.json();
     const parsed = LoginSchema.safeParse(body);
 

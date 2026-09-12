@@ -72,13 +72,25 @@ export async function GET(req: NextRequest) {
   }
 }
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function renderHtml(title: string, message: string, isSuccess: boolean): string {
+  const safeTitle = escapeHtml(title);
+  const safeMessage = escapeHtml(message);
+
   return `
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
-  <title>${title} — Export AI</title>
+  <title>${safeTitle} — Export AI</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <style>
     body {
@@ -130,8 +142,8 @@ function renderHtml(title: string, message: string, isSuccess: boolean): string 
 <body>
   <div class="card">
     <div class="icon">${isSuccess ? "✓" : "✕"}</div>
-    <h1>${title}</h1>
-    <p>${message}</p>
+    <h1>${safeTitle}</h1>
+    <p>${safeMessage}</p>
   </div>
 </body>
 </html>

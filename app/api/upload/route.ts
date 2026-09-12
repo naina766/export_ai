@@ -23,6 +23,23 @@ export async function POST(req: NextRequest) {
 
     if (!file) return errorResponse("No file provided", 400);
 
+    // Security validation: Size cap (10MB) and MIME-type whitelist
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+    if (file.size > MAX_FILE_SIZE) {
+      return errorResponse("File size exceeds maximum allowed limit of 10MB.", 400);
+    }
+
+    const ALLOWED_MIME_TYPES = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "application/pdf",
+      "text/csv",
+    ];
+    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+      return errorResponse("Unsupported file type. Only JPEG, PNG, WebP, PDF, and CSV files are permitted.", 400);
+    }
+
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
