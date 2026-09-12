@@ -16,8 +16,12 @@ import toast from "react-hot-toast";
 
 export default function ReportsPage() {
   const handleExportCsv = () => {
-    toast.success("Exporting verified buyer leads CSV...");
-    window.location.href = "/api/leads?limit=500";
+    // Uses the authenticated CSV export endpoint (not the JSON leads API)
+    window.location.href = "/api/leads/export";
+  };
+
+  const handleExportDeliverabilityReport = () => {
+    toast("Campaign deliverability export is not yet implemented.", { icon: "ℹ️" });
   };
 
   return (
@@ -72,7 +76,7 @@ export default function ReportsPage() {
               variant="secondary"
               size="md"
               leftIcon={<Download className="w-4 h-4" />}
-              onClick={() => toast.success("Generating delivery audit dataset...")}
+              onClick={handleExportDeliverabilityReport}
             >
               Export Deliverability Report
             </Button>

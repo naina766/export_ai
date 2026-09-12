@@ -3,42 +3,43 @@ import { z } from "zod";
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
 export const RegisterSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
-  email: z.string().email("Invalid email address"),
+  name: z.string().min(2, "Name must be at least 2 characters").max(100, "Name too long"),
+  email: z.string().email("Invalid email address").max(254, "Email too long"),
   password: z
     .string()
     .min(8, "Password must be at least 8 characters")
+    .max(128, "Password too long")
     .regex(/[A-Z]/, "Must contain at least one uppercase letter")
     .regex(/[0-9]/, "Must contain at least one number"),
-  phone: z.string().optional(),
+  phone: z.string().max(30, "Phone number too long").optional(),
 });
 
 export const LoginSchema = z.object({
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(1, "Password is required"),
+  email: z.string().email("Invalid email address").max(254, "Email too long"),
+  password: z.string().min(1, "Password is required").max(128, "Password too long"),
   rememberMe: z.boolean().optional().default(false),
 });
 
 // ─── Buyer Lead ──────────────────────────────────────────────────────────────
 
 export const CreateBuyerLeadSchema = z.object({
-  companyName: z.string().min(2, "Company name is required"),
-  contactPerson: z.string().optional(),
-  email: z.string().email("Valid email address is required"),
-  phone: z.string().optional(),
-  website: z.string().optional(),
-  country: z.string().min(2, "Country is required"),
-  city: z.string().optional(),
-  source: z.string().optional().default("MANUAL"),
+  companyName: z.string().min(2, "Company name is required").max(200, "Company name too long"),
+  contactPerson: z.string().max(150, "Contact name too long").optional(),
+  email: z.string().email("Valid email address is required").max(254, "Email too long"),
+  phone: z.string().max(30, "Phone number too long").optional(),
+  website: z.string().url("Must be a valid URL").max(500, "URL too long").optional().or(z.literal("")),
+  country: z.string().min(2, "Country is required").max(100, "Country name too long"),
+  city: z.string().max(100, "City name too long").optional(),
+  source: z.string().max(100, "Source too long").optional().default("MANUAL"),
   buyerType: z
     .enum(["BUSINESS", "DISTRIBUTOR", "STUDIO", "RETAILER", "INDIVIDUAL", "UNKNOWN"])
     .optional()
     .default("BUSINESS"),
   buyerIntent: z.enum(["HIGH", "MEDIUM", "LOW", "UNKNOWN"]).optional().default("MEDIUM"),
-  industry: z.string().optional(),
-  productInterest: z.string().optional().default("Handmade Tibetan Singing Bowls"),
-  notes: z.string().optional(),
-  tags: z.array(z.string()).optional(),
+  industry: z.string().max(150, "Industry too long").optional(),
+  productInterest: z.string().max(500, "Product interest too long").optional().default("Handmade Tibetan Singing Bowls"),
+  notes: z.string().max(5000, "Notes too long").optional(),
+  tags: z.array(z.string().max(50)).max(20, "Too many tags").optional(),
   assignedToId: z.string().optional(),
 });
 
@@ -89,17 +90,17 @@ export const UpdateProductSchema = CreateProductSchema.partial();
 // ─── Campaign ────────────────────────────────────────────────────────────────
 
 export const CreateCampaignSchema = z.object({
-  name: z.string().min(2, "Campaign name is required"),
-  description: z.string().optional(),
-  subject: z.string().min(5, "Subject line is required"),
+  name: z.string().min(2, "Campaign name is required").max(200, "Campaign name too long"),
+  description: z.string().max(2000, "Description too long").optional(),
+  subject: z.string().min(5, "Subject line is required").max(500, "Subject line too long"),
   templateId: z.string().optional(),
   productId: z.string().optional(),
-  dailyLimit: z.number().int().positive().default(200),
-  emailsPerMinute: z.number().int().positive().default(10),
-  delayBetweenEmails: z.number().int().nonnegative().default(3000),
+  dailyLimit: z.number().int().positive().max(10000).default(200),
+  emailsPerMinute: z.number().int().positive().max(60).default(10),
+  delayBetweenEmails: z.number().int().nonnegative().max(300000).default(3000),
   scheduledAt: z.string().optional(),
-  leadIds: z.array(z.string()).min(1, "Select at least one recipient lead"),
-  attachmentIds: z.array(z.string()).optional(),
+  leadIds: z.array(z.string()).min(1, "Select at least one recipient lead").max(10000, "Too many recipients"),
+  attachmentIds: z.array(z.string()).max(10, "Too many attachments").optional(),
 });
 
 export const UpdateCampaignSchema = CreateCampaignSchema.partial().extend({
@@ -119,11 +120,11 @@ export const ApprovePersonalizedEmailSchema = z.object({
 // ─── Email Template ──────────────────────────────────────────────────────────
 
 export const CreateTemplateSchema = z.object({
-  name: z.string().min(2, "Template name is required"),
-  subject: z.string().min(5, "Subject line is required"),
-  body: z.string().min(10, "Body content is required"),
-  variables: z.array(z.string()).optional(),
-  category: z.string().optional().default("Wholesale Outreach"),
+  name: z.string().min(2, "Template name is required").max(200, "Template name too long"),
+  subject: z.string().min(5, "Subject line is required").max(500, "Subject too long"),
+  body: z.string().min(10, "Body content is required").max(50000, "Body too long"),
+  variables: z.array(z.string().max(100)).max(50, "Too many variables").optional(),
+  category: z.string().max(100, "Category too long").optional().default("Wholesale Outreach"),
   isDefault: z.boolean().optional().default(false),
 });
 
@@ -165,15 +166,15 @@ export function isValidOpportunityStageTransition(
 }
 
 export const CreateOpportunitySchema = z.object({
-  title: z.string().min(2, "Title is required"),
+  title: z.string().min(2, "Title is required").max(300, "Title too long"),
   leadId: z.string().min(1, "Buyer lead ID is required"),
   productId: z.string().optional(),
-  inquiryValue: z.number().positive().optional(),
-  currency: z.string().default("USD"),
-  quantity: z.number().int().positive().optional(),
+  inquiryValue: z.number().positive().max(100_000_000, "Value too large").optional(),
+  currency: z.string().max(10, "Currency code too long").default("USD"),
+  quantity: z.number().int().positive().max(1_000_000).optional(),
   terms: z.enum(["FOB", "CIF", "EXW", "CFR", "DDP"]).default("FOB"),
   expectedCloseDate: z.string().optional(),
-  notes: z.string().optional(),
+  notes: z.string().max(5000, "Notes too long").optional(),
   stage: OpportunityStageEnum.default("PROSPECTING"),
 });
 
@@ -196,12 +197,12 @@ export const QuotationItemSchema = z.object({
 export const CreateQuotationSchema = z.object({
   leadId: z.string().min(1, "Buyer lead is required"),
   opportunityId: z.string().optional(),
-  currency: z.string().default("USD"),
-  shippingCost: z.number().nonnegative().default(0),
+  currency: z.string().max(10, "Currency code too long").default("USD"),
+  shippingCost: z.number().nonnegative().max(10_000_000).default(0),
   tradeTerm: z.enum(["FOB", "CIF", "EXW", "CFR", "DDP"]).default("FOB"),
   validUntil: z.string().min(1, "Validity date is required"),
-  notes: z.string().optional(),
-  items: z.array(QuotationItemSchema).min(1, "At least one quotation line item is required"),
+  notes: z.string().max(5000, "Notes too long").optional(),
+  items: z.array(QuotationItemSchema).min(1, "At least one quotation line item is required").max(100, "Too many line items"),
 });
 
 export const UpdateQuotationSchema = CreateQuotationSchema.partial().extend({

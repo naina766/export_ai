@@ -5,6 +5,7 @@ import {
   signAccessToken,
   signRefreshToken,
   setAuthCookies,
+  hashRefreshToken,
 } from "@/lib/auth";
 import { LoginSchema } from "@/lib/validations";
 import {
@@ -73,11 +74,11 @@ export async function POST(req: NextRequest) {
     const accessToken = await signAccessToken(tokenPayload);
     const refreshToken = await signRefreshToken(tokenPayload, Boolean(rememberMe));
 
-    // Store refresh token (30 days if rememberMe, otherwise 7 days)
+    // Store SHA-256 hash of refresh token (never store plaintext in DB)
     const refreshExpiryDays = rememberMe ? 30 : 7;
     await prisma.refreshToken.create({
       data: {
-        token: refreshToken,
+        token: hashRefreshToken(refreshToken),
         userId: user.id,
         expiresAt: new Date(Date.now() + refreshExpiryDays * 24 * 60 * 60 * 1000),
       },

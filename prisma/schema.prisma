@@ -435,7 +435,7 @@ model PersonalizedEmail {
   bodyText    String    @db.Text
 
   aiGenerated Boolean   @default(false)
-  isApproved  Boolean   @default(true) // Human approval gate
+  isApproved  Boolean   @default(false) // Human approval gate — must never default to true
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt

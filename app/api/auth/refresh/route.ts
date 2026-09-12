@@ -6,6 +6,7 @@ import {
   signRefreshToken,
   setAuthCookies,
   clearAuthCookies,
+  hashRefreshToken,
 } from "@/lib/auth";
 import { successResponse, errorResponse, handleApiError } from "@/lib/api";
 
@@ -22,9 +23,10 @@ export async function POST(req: NextRequest) {
       return errorResponse("Invalid or expired refresh token", 401);
     }
 
-    // Check if token is in DB
+    // Hash the incoming token for DB lookup (we never store plaintext)
+    const tokenHash = hashRefreshToken(refreshToken);
     const storedToken = await prisma.refreshToken.findUnique({
-      where: { token: refreshToken },
+      where: { token: tokenHash },
     });
 
     if (!storedToken || storedToken.expiresAt < new Date()) {
@@ -61,12 +63,12 @@ export async function POST(req: NextRequest) {
     const refreshExpiryDays = isRememberMe ? 30 : 7;
     const newExpiresAt = new Date(Date.now() + refreshExpiryDays * 24 * 60 * 60 * 1000);
 
-    // Replace old refresh token atomically
+    // Replace old refresh token atomically (stored as hash)
     await prisma.$transaction(async (tx) => {
-      await tx.refreshToken.delete({ where: { token: refreshToken } });
+      await tx.refreshToken.delete({ where: { token: tokenHash } });
       await tx.refreshToken.create({
         data: {
-          token: newRefreshToken,
+          token: hashRefreshToken(newRefreshToken),
           userId: user.id,
           expiresAt: newExpiresAt,
         },

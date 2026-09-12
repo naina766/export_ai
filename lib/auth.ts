@@ -1,6 +1,7 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { NextRequest } from "next/server";
+import crypto from "crypto";
 
 export function getJwtSecret(): Uint8Array {
   const secret = process.env.JWT_SECRET;
@@ -22,6 +23,16 @@ export interface JWTPayload {
   role: string;
   name: string;
   rememberMe?: boolean;
+}
+
+// ─── Refresh Token Hashing ────────────────────────────────────────────────────
+
+/**
+ * One-way SHA-256 hash of a refresh token for safe DB storage.
+ * Never stored plaintext; comparison done hash-to-hash.
+ */
+export function hashRefreshToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
 }
 
 // ─── Token Generation ──────────────────────────────────────────────────────
