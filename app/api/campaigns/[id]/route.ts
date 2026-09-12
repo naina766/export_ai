@@ -13,6 +13,25 @@ export async function GET(
     const user = await getAuthUser(req);
     if (!user) return errorResponse("Unauthorized", 401);
 
+    // Lightweight ownership check — do NOT load nested associations yet
+    const campaignMeta = await prisma.campaign.findUnique({
+      where: { id: params.id },
+      select: { id: true, createdById: true },
+    });
+
+    if (!campaignMeta) return errorResponse("Campaign not found", 404);
+
+    const isPrivileged = ["ADMIN", "MANAGER"].includes(user.role);
+    const isOwner = campaignMeta.createdById === user.userId;
+
+    if (!isPrivileged && !isOwner) {
+      return errorResponse(
+        "Forbidden: You do not have permission to view this campaign",
+        403
+      );
+    }
+
+    // Authorization passed — now load the full campaign with associations
     const campaign = await prisma.campaign.findUnique({
       where: { id: params.id },
       include: {
@@ -36,8 +55,6 @@ export async function GET(
         personalizedEmails: true,
       },
     });
-
-    if (!campaign) return errorResponse("Campaign not found", 404);
 
     return successResponse(campaign);
   } catch (error) {
