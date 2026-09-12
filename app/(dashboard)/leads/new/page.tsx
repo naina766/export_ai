@@ -1,41 +1,71 @@
 "use client";
-import { useState } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import toast from "react-hot-toast";
-import { Card, Button, Input, Select } from "@/components/ui";
-import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { ArrowLeft, Building2, Send, Globe2, ShieldCheck, Sparkles } from "lucide-react";
+import { Card, Button, Input, Select, Textarea, PageHeader } from "@/components/ui";
+import toast from "react-hot-toast";
 
 export default function NewLeadPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
-    name: "", phone: "", email: "", budget: "", source: "WEBSITE",
-    status: "NEW", notes: "",
+    companyName: "",
+    contactPerson: "",
+    email: "",
+    phone: "",
+    website: "",
+    country: "Germany",
+    city: "",
+    buyerType: "DISTRIBUTOR",
+    buyerIntent: "HIGH",
+    productInterest: "Handmade Tibetan Singing Bowls",
+    notes: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
-    setForm((f) => ({ ...f, [field]: e.target.value }));
+  const handleChange = (field: string, value: string) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+    if (errors[field]) {
+      setErrors((prev) => ({ ...prev, [field]: "" }));
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.companyName.trim()) {
+      setErrors({ companyName: "Company name is required." });
+      return;
+    }
+    if (!form.email.trim() || !form.email.includes("@")) {
+      setErrors({ email: "Valid business email is required." });
+      return;
+    }
+    if (!form.country.trim()) {
+      setErrors({ country: "Country is required." });
+      return;
+    }
+
     setLoading(true);
     setErrors({});
     try {
       const res = await fetch("/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, budget: form.budget ? parseFloat(form.budget) : undefined }),
+        body: JSON.stringify(form),
       });
       const data = await res.json();
       if (!res.ok) {
-        if (data.errors?.fieldErrors) setErrors(
-          Object.fromEntries(Object.entries(data.errors.fieldErrors).map(([k, v]) => [k, (v as string[])[0]]))
-        );
-        throw new Error(data.message);
+        if (data.errors?.fieldErrors) {
+          setErrors(
+            Object.fromEntries(
+              Object.entries(data.errors.fieldErrors).map(([k, v]) => [k, (v as string[])[0]])
+            )
+          );
+        }
+        throw new Error(data.message || "Failed to create lead");
       }
-      toast.success("Lead created successfully!");
+      toast.success("Buyer lead created and queued for Gemini AI qualification!");
       router.push(`/leads/${data.data.id}`);
     } catch (err: any) {
       toast.error(err.message || "Failed to create lead");
@@ -45,65 +75,173 @@ export default function NewLeadPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <div className="flex items-center gap-3">
-        <Link href="/leads" className="p-2 rounded-xl text-[#8892b0] hover:text-[#f1f5ff] hover:bg-[#1a2035] transition-all">
-          <ArrowLeft size={16} />
-        </Link>
-        <div>
-          <h2 className="text-lg font-semibold text-[#f1f5ff]">Create New Lead</h2>
-          <p className="text-xs text-[#8892b0]">Capture and track a new prospect</p>
-        </div>
-      </div>
+    <div className="max-w-3xl mx-auto space-y-6 pb-16 font-sans">
+      <PageHeader
+        title="Add Wholesale Buyer Lead"
+        subtitle="Record a prospective international wholesale buyer for automated AI scoring and outreach."
+        actions={
+          <Link href="/leads">
+            <Button variant="outline" size="sm" leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
+              Back to Directory
+            </Button>
+          </Link>
+        }
+      />
 
-      <Card className="p-6">
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input label="Full Name" id="lead-name" placeholder="John Doe" value={form.name}
-              onChange={set("name")} error={errors.name} required />
-            <Input label="Phone Number" id="lead-phone" type="tel" placeholder="+91 98765 43210"
-              value={form.phone} onChange={set("phone")} error={errors.phone} required />
-            <Input label="Email Address" id="lead-email" type="email" placeholder="john@example.com"
-              value={form.email} onChange={set("email")} error={errors.email} />
-            <Input label="Budget (₹)" id="lead-budget" type="number" placeholder="5000000"
-              value={form.budget} onChange={set("budget")} error={errors.budget} />
-            <Select label="Lead Source" id="lead-source" value={form.source} onChange={(e) => setForm((f) => ({ ...f, source: e.target.value }))}
-              options={[
-                { value: "WEBSITE", label: "Website" },
-                { value: "REFERRAL", label: "Referral" },
-                { value: "PORTAL", label: "Property Portal" },
-                { value: "SOCIAL_MEDIA", label: "Social Media" },
-                { value: "COLD_CALL", label: "Cold Call" },
-                { value: "WALK_IN", label: "Walk-in" },
-                { value: "OTHER", label: "Other" },
-              ]} />
-            <Select label="Initial Status" id="lead-status" value={form.status}
-              onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
-              options={[
-                { value: "NEW", label: "New" },
-                { value: "CONTACTED", label: "Contacted" },
-                { value: "QUALIFIED", label: "Qualified" },
-              ]} />
+      <div className="p-6 rounded-xl bg-[#0B0F14] border border-white/[0.08] space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Section 1: Company Profile */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-mono font-semibold uppercase text-slate-400 tracking-wider">
+              Company & Geography
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Input
+                  label="Company Name *"
+                  value={form.companyName}
+                  onChange={(e) => handleChange("companyName", e.target.value)}
+                  placeholder="e.g. Klangtherapie Zentrum GmbH"
+                  error={errors.companyName}
+                  required
+                />
+              </div>
+              <div>
+                <Input
+                  label="Target Country *"
+                  value={form.country}
+                  onChange={(e) => handleChange("country", e.target.value)}
+                  placeholder="e.g. Germany, USA, UK"
+                  error={errors.country}
+                  required
+                />
+              </div>
+              <div>
+                <Input
+                  label="City / Region"
+                  value={form.city}
+                  onChange={(e) => handleChange("city", e.target.value)}
+                  placeholder="e.g. Munich, Bavaria"
+                />
+              </div>
+              <div>
+                <Input
+                  label="Website"
+                  value={form.website}
+                  onChange={(e) => handleChange("website", e.target.value)}
+                  placeholder="e.g. klangtherapie.de"
+                />
+              </div>
+            </div>
           </div>
-          <div>
-            <label className="text-xs font-medium text-[#8892b0] uppercase tracking-wide block mb-1.5">Notes</label>
-            <textarea
-              id="lead-notes"
-              placeholder="Add any relevant notes about this lead..."
-              value={form.notes}
-              onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-              rows={4}
-              className="w-full bg-[#161b27] border border-[#2a3356] rounded-xl px-4 py-2.5 text-sm text-[#f1f5ff] placeholder-[#4a5a80] focus:outline-none focus:border-blue-500/60 focus:ring-1 focus:ring-blue-500/30 transition-all resize-none"
-            />
+
+          {/* Section 2: Contact Information */}
+          <div className="space-y-4 pt-4 border-t border-white/[0.06]">
+            <h3 className="text-sm font-mono font-semibold uppercase text-slate-400 tracking-wider">
+              Procurement Contact
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Input
+                  label="Contact Person"
+                  value={form.contactPerson}
+                  onChange={(e) => handleChange("contactPerson", e.target.value)}
+                  placeholder="e.g. Helga Schmidt"
+                />
+              </div>
+              <div>
+                <Input
+                  label="Commercial Email *"
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => handleChange("email", e.target.value)}
+                  placeholder="einkauf@klangtherapie.de"
+                  error={errors.email}
+                  required
+                />
+              </div>
+              <div>
+                <Input
+                  label="Phone / WhatsApp"
+                  value={form.phone}
+                  onChange={(e) => handleChange("phone", e.target.value)}
+                  placeholder="+49 89 123456"
+                />
+              </div>
+              <div>
+                <Select
+                  label="Buyer Type"
+                  value={form.buyerType}
+                  onChange={(e) => handleChange("buyerType", e.target.value)}
+                  options={[
+                    { label: "Distributor / Wholesaler", value: "DISTRIBUTOR" },
+                    { label: "Retailer / Chain", value: "RETAILER" },
+                    { label: "Meditation / Sound Studio", value: "STUDIO" },
+                    { label: "Commercial Business", value: "BUSINESS" },
+                    { label: "Individual / Practitioner", value: "INDIVIDUAL" },
+                  ]}
+                />
+              </div>
+            </div>
           </div>
-          <div className="flex justify-end gap-3 pt-2">
-            <Link href="/leads">
-              <Button variant="secondary" type="button">Cancel</Button>
-            </Link>
-            <Button type="submit" isLoading={loading} id="create-lead-submit">Create Lead</Button>
+
+          {/* Section 3: Commercial Intent */}
+          <div className="space-y-4 pt-4 border-t border-white/[0.06]">
+            <h3 className="text-sm font-mono font-semibold uppercase text-slate-400 tracking-wider">
+              Export Fit & Intent
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Select
+                  label="Estimated Purchase Intent"
+                  value={form.buyerIntent}
+                  onChange={(e) => handleChange("buyerIntent", e.target.value)}
+                  options={[
+                    { label: "High (Ready for CIF / FOB quotation)", value: "HIGH" },
+                    { label: "Medium (Catalog review & samples)", value: "MEDIUM" },
+                    { label: "Low (General inquiry)", value: "LOW" },
+                  ]}
+                />
+              </div>
+              <div>
+                <Input
+                  label="Product Category Interest"
+                  value={form.productInterest}
+                  onChange={(e) => handleChange("productInterest", e.target.value)}
+                  placeholder="e.g. 7-Chakra Harmonic Sets, Master Bowls"
+                />
+              </div>
+            </div>
+            <div>
+              <Textarea
+                label="Procurement Notes / Background"
+                value={form.notes}
+                onChange={(e) => handleChange("notes", e.target.value)}
+                placeholder="Specific trade requirements (e.g., requires acoustic certificates, master carton packaging, CIF Hamburg pricing)..."
+                rows={3}
+              />
+            </div>
+          </div>
+
+          {/* Action Bar */}
+          <div className="pt-4 border-t border-white/[0.06] flex items-center justify-between">
+            <span className="text-xs font-mono text-slate-400 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-[#6366F1]" />
+              Trigger automated RFC-5322 validation & Gemini AI scoring
+            </span>
+            <div className="flex items-center gap-3">
+              <Link href="/leads">
+                <Button variant="ghost" size="md">
+                  Cancel
+                </Button>
+              </Link>
+              <Button variant="primary" size="md" isLoading={loading} type="submit" leftIcon={<Send className="w-4 h-4" />}>
+                Create & Qualify Lead
+              </Button>
+            </div>
           </div>
         </form>
-      </Card>
+      </div>
     </div>
   );
 }
