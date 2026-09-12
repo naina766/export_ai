@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Users,
   Search,
@@ -101,8 +102,11 @@ function LeadScoreRing({ score }: { score: number }) {
 }
 
 export default function BuyerLeadsPage() {
+  const router = useRouter();
   const [leads, setLeads] = useState<BuyerLead[]>([]);
   const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const limit = 20;
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -138,6 +142,8 @@ export default function BuyerLeadsPage() {
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
+      params.set("page", page.toString());
+      params.set("limit", limit.toString());
       if (search) params.set("search", search);
       if (filterScore) params.set("minScore", filterScore);
       if (filterCountry) params.set("country", filterCountry);
@@ -157,12 +163,18 @@ export default function BuyerLeadsPage() {
     }
   };
 
+  // Reset to page 1 on filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [search, filterScore, filterCountry, filterEmailVerified, filterStatus]);
+
+  // Fetch leads on page or filter changes
   useEffect(() => {
     const delayDebounce = setTimeout(() => {
       fetchLeads();
     }, 250);
     return () => clearTimeout(delayDebounce);
-  }, [search, filterScore, filterCountry, filterEmailVerified, filterStatus]);
+  }, [page, search, filterScore, filterCountry, filterEmailVerified, filterStatus]);
 
   const handleSelectAll = (checked: boolean) => {
     setSelectedIds(checked ? leads.map((l) => l.id) : []);
@@ -478,6 +490,38 @@ export default function BuyerLeadsPage() {
             </TableBody>
           </Table>
         )}
+
+        {/* ── Table Pagination Bar ── */}
+        {total > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t border-white/[0.08] bg-[#0A0D13]">
+            <div className="text-xs text-slate-400 font-mono">
+              Showing <span className="text-[#F8FAFC] font-semibold">{(page - 1) * limit + 1}</span> to{" "}
+              <span className="text-[#F8FAFC] font-semibold">{Math.min(page * limit, total)}</span> of{" "}
+              <span className="text-[#F8FAFC] font-semibold">{total}</span> buyer leads
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page <= 1 || isLoading}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                Previous
+              </Button>
+              <span className="text-xs font-mono text-slate-400 px-2">
+                Page {page} of {Math.max(1, Math.ceil(total / limit))}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page >= Math.ceil(total / limit) || isLoading}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════════
@@ -495,11 +539,11 @@ export default function BuyerLeadsPage() {
             <NextBestAction
               variant="drawer"
               action={activeLead.country === "Germany" ? "Dispatch CIF Hamburg Proforma Quotation" : "Send 432Hz Master Sets Catalog"}
-              reason={activeLead.aiReasoning || "Meditation studios in this corridor show 24.2% higher response when CIF shipping terms are stated upfront."}
+              reason={activeLead.aiReasoning || "Meditation studios in this corridor show higher response when CIF shipping terms are stated upfront."}
               confidence={activeLead.leadScore}
               actionLabel="Create Quotation"
               onAction={() => {
-                window.location.href = `/quotations/new?leadId=${activeLead.id}`;
+                router.push(`/quotations/new?leadId=${activeLead.id}`);
               }}
             />
 
