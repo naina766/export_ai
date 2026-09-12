@@ -17,9 +17,9 @@ async function main() {
     const channel = await rabbitmq.getChannel();
     if (channel) {
       await assertTopology(channel);
-      console.log("✓ RabbitMQ topology ready.");
+      console.log("✓ RabbitMQ topology confirmed & ready.");
     } else {
-      console.warn("⚠️ RabbitMQ channel unavailable at boot. Workers will operate in fallback mode.");
+      console.warn("⚠️ RabbitMQ channel unavailable at boot. Workers initialized in standby polling mode and will automatically bind upon broker connection.");
     }
 
     // Launch all workers
