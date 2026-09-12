@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { Search, Plus } from "lucide-react";
+import { Search, Plus, Menu } from "lucide-react";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { NotificationButton } from "@/components/layout/NotificationButton";
 import { UserMenu } from "@/components/layout/UserMenu";
@@ -11,10 +11,12 @@ export function TopNavbar({
   isSidebarCollapsed,
   onOpenCommand,
   onOpenShortcuts,
+  onOpenMobileMenu,
 }: {
   isSidebarCollapsed: boolean;
   onOpenCommand?: () => void;
   onOpenShortcuts?: () => void;
+  onOpenMobileMenu?: () => void;
 }) {
   const [isMac, setIsMac] = useState(false);
 
@@ -28,13 +30,21 @@ export function TopNavbar({
   return (
     <header
       className={cn(
-        "sticky top-0 z-40 h-16 w-full border-b border-white/[0.08] bg-[#070A0F]/95 backdrop-blur-xl transition-all duration-200 font-sans",
-        isSidebarCollapsed ? "ml-[72px]" : "ml-[240px]"
+        "sticky top-0 z-30 h-16 w-full border-b border-white/[0.08] bg-[#070A0F]/95 backdrop-blur-xl transition-all duration-200 font-sans ml-0",
+        isSidebarCollapsed ? "md:ml-[72px]" : "md:ml-[240px]"
       )}
     >
-      <div className="grid h-full w-full grid-cols-[auto_1fr_auto] md:grid-cols-[minmax(200px,1fr)_minmax(280px,520px)_minmax(200px,1fr)] items-center gap-4 px-6">
-        {/* ── Left: Breadcrumbs / Title ── */}
+      <div className="grid h-full w-full grid-cols-[auto_1fr_auto] md:grid-cols-[minmax(200px,1fr)_minmax(280px,520px)_minmax(200px,1fr)] items-center gap-4 px-4 sm:px-6">
+        {/* ── Left: Hamburger Menu (Mobile) & Breadcrumbs ── */}
         <div className="min-w-0 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onOpenMobileMenu}
+            aria-label="Open navigation menu"
+            className="h-9 w-9 flex items-center justify-center rounded-lg bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.08] transition-colors text-slate-300 md:hidden cursor-pointer shrink-0"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
           <Breadcrumbs />
         </div>
 

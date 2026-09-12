@@ -10,6 +10,7 @@ import { cn } from "@/components/ui";
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isCommandOpen, setIsCommandOpen] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const keySequenceRef = useRef<string[]>([]);
@@ -89,10 +90,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-[#07090D] text-[#F5F7FA] font-sans">
-      {/* ── Fixed Sidebar ── */}
+      {/* ── Responsive Sidebar & Mobile Drawer ── */}
       <Sidebar
         isCollapsed={isCollapsed}
         setIsCollapsed={setIsCollapsed}
+        mobileOpen={mobileMenuOpen}
+        onCloseMobile={() => setMobileMenuOpen(false)}
       />
 
       {/* ── Main Workspace ── */}
@@ -101,11 +104,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           isSidebarCollapsed={isCollapsed}
           onOpenCommand={() => setIsCommandOpen(true)}
           onOpenShortcuts={() => setIsShortcutsOpen(true)}
+          onOpenMobileMenu={() => setMobileMenuOpen(true)}
         />
         <main
           className={cn(
-            "flex-1 p-6 lg:p-8 xl:p-10 transition-all duration-200",
-            isCollapsed ? "ml-[72px]" : "ml-[240px]"
+            "flex-1 p-4 sm:p-6 lg:p-8 xl:p-10 transition-all duration-200 ml-0",
+            isCollapsed ? "md:ml-[72px]" : "md:ml-[240px]"
           )}
         >
           <div className="max-w-[1600px] w-full mx-auto">{children}</div>
