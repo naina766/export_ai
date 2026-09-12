@@ -192,3 +192,9 @@ export const PaginationSchema = z.object({
   sortBy: z.string().optional(),
   sortOrder: z.enum(["asc", "desc"]).default("desc"),
 });
+
+// ─── Analytics ────────────────────────────────────────────────────────────────
+
+export const AnalyticsRangeSchema = z.enum(["7D", "30D", "90D", "12M"]);
+export type AnalyticsRange = z.infer<typeof AnalyticsRangeSchema>;
+

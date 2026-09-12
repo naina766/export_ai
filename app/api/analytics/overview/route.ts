@@ -78,8 +78,8 @@ export async function GET(req: NextRequest) {
     const totalClosed = wonCount + lostCount;
     const winRate = totalClosed > 0 ? (wonCount / totalClosed) * 100 : 0;
 
-    // Buyer Reply Rate
-    const replyRate = totalEmailsSent > 0 ? ((repliedBuyers / totalEmailsSent) * 100).toFixed(1) : "0.0";
+    // Email Reply Rate: (repliedEmails / totalEmailsSent) * 100
+    const emailReplyRate = totalEmailsSent > 0 ? (repliedEmails / totalEmailsSent) * 100 : 0;
 
     // Quality Distribution
     const qualityDistribution = [
@@ -163,8 +163,9 @@ export async function GET(req: NextRequest) {
         openOpportunities,
         winRate: Number(winRate.toFixed(1)),
         totalEmailsSent,
+        repliedEmails,
         repliedBuyers,
-        replyRate: `${replyRate}%`,
+        replyRate: `${emailReplyRate.toFixed(1)}%`,
       },
       // Top-level aliases for direct access
       totalBuyers,
@@ -173,12 +174,15 @@ export async function GET(req: NextRequest) {
       activeCampaigns,
       openOpportunities,
       winRate: Number(winRate.toFixed(1)),
+      repliedBuyers,
+      repliedEmails,
       qualityDistribution,
       topCountries,
       outreach: {
         sent: totalEmailsSent,
         replied: repliedEmails,
         bounced: bouncedEmails,
+        replyRate: Number(emailReplyRate.toFixed(1)),
       },
       topRecommendation,
       productCategories,
