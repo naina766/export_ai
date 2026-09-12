@@ -33,14 +33,14 @@ import {
 import toast from "react-hot-toast";
 
 const STAGES = [
-  { id: "PROSPECTING", label: "Discovered" },
-  { id: "VALIDATED", label: "Validated" },
+  { id: "PROSPECTING", label: "Prospecting" },
   { id: "QUALIFIED", label: "AI Qualified" },
   { id: "CONTACTED", label: "Contacted" },
   { id: "INTERESTED", label: "Interested" },
   { id: "NEGOTIATION", label: "Negotiation" },
   { id: "QUOTATION", label: "Quotation" },
   { id: "CLOSED_WON", label: "Won" },
+  { id: "CLOSED_LOST", label: "Lost" },
 ];
 
 interface Opportunity {
@@ -210,22 +210,42 @@ export default function OpportunitiesKanbanPage() {
     if (!draggedId) return;
 
     const oppId = draggedId;
+    const previousOpp = opportunities.find((o) => o.id === oppId);
+    if (!previousOpp || previousOpp.stage === stageId) {
+      setDragOverStage(null);
+      setDraggedId(null);
+      return;
+    }
+
     // Optimistic UI Update
     setOpportunities((prev) =>
       prev.map((o) => (o.id === oppId ? { ...o, stage: stageId, daysInStage: 0 } : o))
     );
     setDragOverStage(null);
     setDraggedId(null);
-    toast.success(`Opportunity moved to ${STAGES.find((s) => s.id === stageId)?.label}`);
 
     try {
-      await fetch("/api/opportunities", {
+      const res = await fetch("/api/opportunities", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: oppId, stage: stageId }),
       });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        // Rollback optimistic update
+        setOpportunities((prev) =>
+          prev.map((o) => (o.id === oppId ? previousOpp : o))
+        );
+        toast.error(data.error || "Invalid stage transition");
+      } else {
+        toast.success(`Opportunity moved to ${STAGES.find((s) => s.id === stageId)?.label}`);
+      }
     } catch {
-      // ignore network errors
+      // Rollback on network failure
+      setOpportunities((prev) =>
+        prev.map((o) => (o.id === oppId ? previousOpp : o))
+      );
+      toast.error("Failed to update opportunity stage");
     }
   };
 

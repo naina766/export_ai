@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { successResponse, errorResponse, handleApiError } from "@/lib/api";
+import { ApprovePersonalizedEmailSchema } from "@/lib/validations";
 
 // GET /api/campaigns/:id/preview
 export async function GET(
@@ -45,10 +46,40 @@ export async function PATCH(
     const user = await getAuthUser(req);
     if (!user) return errorResponse("Unauthorized", 401);
 
-    const body = await req.json();
-    const { leadId, subject, bodyHtml, bodyText, isApproved } = body;
+    // Verify campaign exists
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: params.id },
+      select: { id: true, createdById: true },
+    });
+    if (!campaign) {
+      return errorResponse("Campaign not found", 404);
+    }
 
-    if (!leadId) return errorResponse("leadId is required", 400);
+    // RBAC: Admins and Managers can approve any campaign; Agents can approve their assigned/created campaigns
+    if (user.role === "AGENT" && campaign.createdById && campaign.createdById !== user.userId) {
+      return errorResponse("Forbidden: You do not have permission to review or approve this campaign", 403);
+    }
+
+    const body = await req.json();
+    const parsed = ApprovePersonalizedEmailSchema.safeParse(body);
+    if (!parsed.success) {
+      return errorResponse("Validation failed", 400, parsed.error.flatten());
+    }
+
+    const { leadId, subject, bodyHtml, bodyText, isApproved } = parsed.data;
+
+    // Verify draft exists
+    const existing = await prisma.personalizedEmail.findUnique({
+      where: {
+        campaignId_leadId: {
+          campaignId: params.id,
+          leadId,
+        },
+      },
+    });
+    if (!existing) {
+      return errorResponse("Personalized email draft not found for this campaign and recipient", 404);
+    }
 
     const updated = await prisma.personalizedEmail.update({
       where: {
@@ -58,9 +89,9 @@ export async function PATCH(
         },
       },
       data: {
-        ...(subject && { subject }),
-        ...(bodyHtml && { bodyHtml }),
-        ...(bodyText && { bodyText }),
+        ...(subject !== undefined && { subject }),
+        ...(bodyHtml !== undefined && { bodyHtml }),
+        ...(bodyText !== undefined && { bodyText }),
         ...(isApproved !== undefined && { isApproved }),
       },
     });

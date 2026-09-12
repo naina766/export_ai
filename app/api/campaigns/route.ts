@@ -133,7 +133,7 @@ export async function POST(req: NextRequest) {
             bodyHtml: personalized.bodyHtml,
             bodyText: personalized.bodyText,
             aiGenerated: true,
-            isApproved: true,
+            isApproved: false,
           },
         });
       }

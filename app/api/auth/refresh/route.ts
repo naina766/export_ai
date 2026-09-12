@@ -41,16 +41,25 @@ export async function POST(req: NextRequest) {
       return errorResponse("Account not found or deactivated", 401);
     }
 
+    // Preserve rememberMe policy: check JWT payload claim OR check stored token duration (> 10 days)
+    const isRememberMe =
+      payload.rememberMe === true ||
+      (storedToken.expiresAt.getTime() - storedToken.createdAt.getTime() > 10 * 24 * 60 * 60 * 1000);
+
     const tokenPayload = {
       userId: user.id,
       email: user.email,
       role: user.role,
       name: user.name,
+      rememberMe: isRememberMe,
     };
 
     // Rotate tokens
     const newAccessToken = await signAccessToken(tokenPayload);
-    const newRefreshToken = await signRefreshToken(tokenPayload);
+    const newRefreshToken = await signRefreshToken(tokenPayload, isRememberMe);
+
+    const refreshExpiryDays = isRememberMe ? 30 : 7;
+    const newExpiresAt = new Date(Date.now() + refreshExpiryDays * 24 * 60 * 60 * 1000);
 
     // Replace old refresh token atomically
     await prisma.$transaction(async (tx) => {
@@ -59,12 +68,12 @@ export async function POST(req: NextRequest) {
         data: {
           token: newRefreshToken,
           userId: user.id,
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          expiresAt: newExpiresAt,
         },
       });
     });
 
-    await setAuthCookies(newAccessToken, newRefreshToken);
+    await setAuthCookies(newAccessToken, newRefreshToken, isRememberMe);
 
     return successResponse({ accessToken: newAccessToken }, "Token refreshed");
   } catch (error) {

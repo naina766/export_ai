@@ -67,10 +67,11 @@ export async function POST(req: NextRequest) {
       email: user.email,
       role: user.role,
       name: user.name,
+      rememberMe: Boolean(rememberMe),
     };
 
     const accessToken = await signAccessToken(tokenPayload);
-    const refreshToken = await signRefreshToken(tokenPayload);
+    const refreshToken = await signRefreshToken(tokenPayload, Boolean(rememberMe));
 
     // Store refresh token (30 days if rememberMe, otherwise 7 days)
     const refreshExpiryDays = rememberMe ? 30 : 7;

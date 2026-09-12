@@ -21,6 +21,7 @@ export interface JWTPayload {
   email: string;
   role: string;
   name: string;
+  rememberMe?: boolean;
 }
 
 // ─── Token Generation ──────────────────────────────────────────────────────
@@ -33,11 +34,18 @@ export async function signAccessToken(payload: JWTPayload): Promise<string> {
     .sign(getJwtSecret());
 }
 
-export async function signRefreshToken(payload: JWTPayload): Promise<string> {
-  return new SignJWT({ ...payload })
+export async function signRefreshToken(
+  payload: JWTPayload,
+  rememberMe: boolean = false
+): Promise<string> {
+  const expiresIn = rememberMe
+    ? "30d"
+    : (process.env.JWT_REFRESH_EXPIRES_IN || "7d");
+
+  return new SignJWT({ ...payload, rememberMe })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime(process.env.JWT_REFRESH_EXPIRES_IN || "7d")
+    .setExpirationTime(expiresIn)
     .sign(getJwtSecret());
 }
 

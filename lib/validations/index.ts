@@ -108,6 +108,14 @@ export const UpdateCampaignSchema = CreateCampaignSchema.partial().extend({
     .optional(),
 });
 
+export const ApprovePersonalizedEmailSchema = z.object({
+  leadId: z.string().min(1, "Lead ID is required"),
+  subject: z.string().min(1).optional(),
+  bodyHtml: z.string().min(1).optional(),
+  bodyText: z.string().min(1).optional(),
+  isApproved: z.boolean().optional(),
+});
+
 // ─── Email Template ──────────────────────────────────────────────────────────
 
 export const CreateTemplateSchema = z.object({
@@ -123,6 +131,39 @@ export const UpdateTemplateSchema = CreateTemplateSchema.partial();
 
 // ─── Sales Opportunity ───────────────────────────────────────────────────────
 
+export const OpportunityStageEnum = z.enum([
+  "PROSPECTING",
+  "QUALIFIED",
+  "CONTACTED",
+  "INTERESTED",
+  "NEGOTIATION",
+  "QUOTATION",
+  "CLOSED_WON",
+  "CLOSED_LOST",
+]);
+
+export type OpportunityStageType = z.infer<typeof OpportunityStageEnum>;
+
+export const ALLOWED_STAGE_TRANSITIONS: Record<OpportunityStageType, OpportunityStageType[]> = {
+  PROSPECTING: ["QUALIFIED"],
+  QUALIFIED: ["CONTACTED", "PROSPECTING"],
+  CONTACTED: ["INTERESTED", "QUALIFIED"],
+  INTERESTED: ["NEGOTIATION", "CONTACTED"],
+  NEGOTIATION: ["QUOTATION", "INTERESTED"],
+  QUOTATION: ["CLOSED_WON", "CLOSED_LOST", "NEGOTIATION"],
+  CLOSED_WON: [],
+  CLOSED_LOST: [],
+};
+
+export function isValidOpportunityStageTransition(
+  currentStage: OpportunityStageType,
+  targetStage: OpportunityStageType
+): boolean {
+  if (currentStage === targetStage) return true;
+  const allowed = ALLOWED_STAGE_TRANSITIONS[currentStage];
+  return Boolean(allowed && allowed.includes(targetStage));
+}
+
 export const CreateOpportunitySchema = z.object({
   title: z.string().min(2, "Title is required"),
   leadId: z.string().min(1, "Buyer lead ID is required"),
@@ -133,21 +174,15 @@ export const CreateOpportunitySchema = z.object({
   terms: z.enum(["FOB", "CIF", "EXW", "CFR", "DDP"]).default("FOB"),
   expectedCloseDate: z.string().optional(),
   notes: z.string().optional(),
-  stage: z
-    .enum([
-      "PROSPECTING",
-      "QUALIFIED",
-      "CONTACTED",
-      "INTERESTED",
-      "NEGOTIATION",
-      "QUOTATION",
-      "CLOSED_WON",
-      "CLOSED_LOST",
-    ])
-    .default("PROSPECTING"),
+  stage: OpportunityStageEnum.default("PROSPECTING"),
 });
 
 export const UpdateOpportunitySchema = CreateOpportunitySchema.partial();
+
+export const UpdateOpportunityStageSchema = z.object({
+  id: z.string().min(1, "Opportunity ID is required"),
+  stage: OpportunityStageEnum,
+});
 
 // ─── Quotation ───────────────────────────────────────────────────────────────
 

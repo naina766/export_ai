@@ -1,7 +1,12 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
-import { CreateOpportunitySchema } from "@/lib/validations";
+import {
+  CreateOpportunitySchema,
+  UpdateOpportunityStageSchema,
+  isValidOpportunityStageTransition,
+  OpportunityStageType,
+} from "@/lib/validations";
 import { successResponse, errorResponse, handleApiError } from "@/lib/api";
 import { OpportunityStage } from "@prisma/client";
 
@@ -11,7 +16,14 @@ export async function GET(req: NextRequest) {
     const user = await getAuthUser(req);
     if (!user) return errorResponse("Unauthorized", 401);
 
-    const stage = req.nextUrl.searchParams.get("stage") as OpportunityStage | null;
+    const stageParam = req.nextUrl.searchParams.get("stage");
+    let stage: OpportunityStage | undefined = undefined;
+    if (stageParam) {
+      if (!Object.values(OpportunityStage).includes(stageParam as OpportunityStage)) {
+        return errorResponse(`Invalid stage parameter: ${stageParam}`, 400);
+      }
+      stage = stageParam as OpportunityStage;
+    }
 
     const opportunities = await prisma.salesOpportunity.findMany({
       where: { ...(stage && { stage }) },
@@ -80,15 +92,48 @@ export async function PATCH(req: NextRequest) {
     if (!user) return errorResponse("Unauthorized", 401);
 
     const body = await req.json();
-    const { id, stage } = body;
-
-    if (!id || !stage) {
-      return errorResponse("Opportunity id and stage are required", 400);
+    const parsed = UpdateOpportunityStageSchema.safeParse(body);
+    if (!parsed.success) {
+      return errorResponse("Validation failed", 400, parsed.error.flatten());
     }
+
+    const { id, stage: targetStage } = parsed.data;
+
+    const existing = await prisma.salesOpportunity.findUnique({
+      where: { id },
+      select: { id: true, title: true, stage: true, leadId: true, closedAt: true },
+    });
+
+    if (!existing) {
+      return errorResponse("Opportunity not found", 404);
+    }
+
+    const currentStage = existing.stage as OpportunityStageType;
+
+    // Reject transitions from terminal closed stages
+    if ((currentStage === "CLOSED_WON" || currentStage === "CLOSED_LOST") && currentStage !== targetStage) {
+      return errorResponse(
+        `Invalid opportunity stage transition: ${currentStage} is terminal and cannot transition to ${targetStage}`,
+        400
+      );
+    }
+
+    // Verify stage transition rules
+    if (!isValidOpportunityStageTransition(currentStage, targetStage)) {
+      return errorResponse(
+        `Invalid opportunity stage transition: ${currentStage} → ${targetStage}`,
+        400
+      );
+    }
+
+    const isClosing = (targetStage === "CLOSED_WON" || targetStage === "CLOSED_LOST");
 
     const updated = await prisma.salesOpportunity.update({
       where: { id },
-      data: { stage: stage as OpportunityStage },
+      data: {
+        stage: targetStage as OpportunityStage,
+        ...(isClosing && !existing.closedAt && { closedAt: new Date() }),
+      },
       include: {
         lead: { select: { id: true, companyName: true } },
       },
@@ -98,7 +143,7 @@ export async function PATCH(req: NextRequest) {
       data: {
         type: "OPPORTUNITY_STAGE_CHANGE",
         title: `Opportunity Stage Updated: ${updated.title}`,
-        description: `Stage changed to ${updated.stage}`,
+        description: `Stage changed from ${currentStage} to ${updated.stage}`,
         userId: user.userId,
         leadId: updated.leadId,
         opportunityId: updated.id,
