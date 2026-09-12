@@ -1,6 +1,16 @@
 import crypto from "crypto";
 
-const SECRET = process.env.UNSUBSCRIBE_SECRET || process.env.JWT_SECRET || "fallback-unsubscribe-secret";
+function getUnsubscribeSecret(): string {
+  const secret = process.env.UNSUBSCRIBE_SECRET;
+  if (secret) return secret;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "FATAL: UNSUBSCRIBE_SECRET environment variable is required in production."
+    );
+  }
+  // Development fallback only — never used in production
+  return "dev-only-unsubscribe-secret-not-for-production";
+}
 
 export interface UnsubscribeTokenPayload {
   leadId: string;

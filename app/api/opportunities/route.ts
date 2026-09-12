@@ -26,7 +26,13 @@ export async function GET(req: NextRequest) {
     }
 
     const opportunities = await prisma.salesOpportunity.findMany({
-      where: { ...(stage && { stage }) },
+      where: {
+        ...(stage && { stage }),
+        // RBAC: AGENT can only see opportunities assigned to them
+        ...(!(["ADMIN", "MANAGER"].includes(user.role)) && {
+          assignedToId: user.userId,
+        }),
+      },
       orderBy: { updatedAt: "desc" },
       include: {
         lead: {
@@ -101,13 +107,18 @@ export async function PATCH(req: NextRequest) {
 
     const existing = await prisma.salesOpportunity.findUnique({
       where: { id },
-      select: { id: true, title: true, stage: true, leadId: true, closedAt: true },
+      select: { id: true, title: true, stage: true, leadId: true, closedAt: true, assignedToId: true },
     });
 
     if (!existing) {
       return errorResponse("Opportunity not found", 404);
     }
 
+    // RBAC: AGENT can only modify their own opportunities
+    const isPrivileged = ["ADMIN", "MANAGER"].includes(user.role);
+    if (!isPrivileged && existing.assignedToId !== user.userId) {
+      return errorResponse("Forbidden: You do not have permission to modify this opportunity", 403);
+    }
     const currentStage = existing.stage as OpportunityStageType;
 
     // Reject transitions from terminal closed stages

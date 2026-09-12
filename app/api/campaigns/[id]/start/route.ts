@@ -15,12 +15,23 @@ export async function POST(
     const user = await getAuthUser(req);
     if (!user) return errorResponse("Unauthorized", 401);
 
+    // Lightweight ownership check before any state changes
+    const campaignMeta = await prisma.campaign.findUnique({
+      where: { id: params.id },
+      select: { id: true, createdById: true },
+    });
+    if (!campaignMeta) return errorResponse("Campaign not found", 404);
+
+    const isPrivileged = ["ADMIN", "MANAGER"].includes(user.role);
+    const isOwner = campaignMeta.createdById === user.userId;
+    if (!isPrivileged && !isOwner) {
+      return errorResponse("Forbidden: You do not have permission to start this campaign", 403);
+    }
+
     const campaign = await prisma.campaign.findUnique({
       where: { id: params.id },
       include: {
-        recipients: {
-          where: { status: RecipientStatus.PENDING },
-        },
+        recipients: { where: { status: RecipientStatus.PENDING } },
       },
     });
 
@@ -29,27 +40,17 @@ export async function POST(
     const updated = await prisma.$transaction(async (tx) => {
       const camp = await tx.campaign.update({
         where: { id: params.id },
-        data: {
-          status: CampaignStatus.RUNNING,
-          startedAt: new Date(),
-        },
+        data: { status: CampaignStatus.RUNNING, startedAt: new Date() },
       });
-
-      // Enqueue Outbox events for all pending recipients
       for (const recipient of campaign.recipients) {
         await createOutboxEvent(tx, {
           eventKey: `campaign:${campaign.id}:lead:${recipient.leadId}:send`,
           eventType: "CAMPAIGN_SEND",
           aggregateType: "Campaign",
           aggregateId: campaign.id,
-          payload: {
-            campaignId: campaign.id,
-            leadId: recipient.leadId,
-            userId: user.userId,
-          },
+          payload: { campaignId: campaign.id, leadId: recipient.leadId, userId: user.userId },
         });
       }
-
       return camp;
     });
 

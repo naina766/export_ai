@@ -14,6 +14,23 @@ export async function GET(
     const user = await getAuthUser(req);
     if (!user) return errorResponse("Unauthorized", 401);
 
+    // Lightweight check first — no nested data loaded yet
+    const leadMeta = await prisma.buyerLead.findUnique({
+      where: { id: params.id },
+      select: { id: true, assignedToId: true, createdById: true },
+    });
+
+    if (!leadMeta) return errorResponse("Buyer lead not found", 404);
+
+    const isPrivileged = ["ADMIN", "MANAGER"].includes(user.role);
+    const isOwner =
+      leadMeta.assignedToId === user.userId || leadMeta.createdById === user.userId;
+
+    if (!isPrivileged && !isOwner) {
+      return errorResponse("Forbidden: You do not have permission to view this buyer lead", 403);
+    }
+
+    // Authorization passed — load full lead with associations
     const lead = await prisma.buyerLead.findUnique({
       where: { id: params.id },
       include: {
@@ -35,13 +52,12 @@ export async function GET(
       },
     });
 
-    if (!lead) return errorResponse("Buyer lead not found", 404);
-
     return successResponse(lead);
   } catch (error) {
     return handleApiError(error);
   }
 }
+
 
 // PATCH /api/leads/:id
 export async function PATCH(

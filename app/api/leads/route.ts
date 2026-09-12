@@ -50,9 +50,24 @@ export async function GET(req: NextRequest) {
     const ALLOWED_SORT_FIELDS = ["createdAt", "leadScore", "companyName", "updatedAt", "country"];
     const safeSortBy = ALLOWED_SORT_FIELDS.includes(sortBy) ? sortBy : "createdAt";
 
+    // RBAC: AGENT can only see leads they created or are assigned to
+    const isPrivileged = ["ADMIN", "MANAGER"].includes(user.role);
+    const ownershipFilter = !isPrivileged
+      ? {
+          OR: [
+            { assignedToId: user.userId },
+            { createdById: user.userId },
+          ],
+        }
+      : {};
+
+    const effectiveWhere = isPrivileged
+      ? where
+      : { AND: [where, ownershipFilter] };
+
     const [leads, total] = await Promise.all([
       prisma.buyerLead.findMany({
-        where,
+        where: effectiveWhere,
         skip,
         take: limit,
         orderBy: { [safeSortBy]: sortOrder },
@@ -65,7 +80,7 @@ export async function GET(req: NextRequest) {
           },
         },
       }),
-      prisma.buyerLead.count({ where }),
+      prisma.buyerLead.count({ where: effectiveWhere }),
     ]);
 
     return paginatedResponse(leads, total, page, limit);

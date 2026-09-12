@@ -14,23 +14,32 @@ export async function POST(
     const user = await getAuthUser(req);
     if (!user) return errorResponse("Unauthorized", 401);
 
-    const campaign = await prisma.campaign.findUnique({ where: { id: params.id } });
-    if (!campaign) return errorResponse("Campaign not found", 404);
+    // Lightweight ownership check before any state changes
+    const campaignMeta = await prisma.campaign.findUnique({
+      where: { id: params.id },
+      select: { id: true, createdById: true, status: true },
+    });
+    if (!campaignMeta) return errorResponse("Campaign not found", 404);
 
-    const newStatus = campaign.status === CampaignStatus.RUNNING
-      ? CampaignStatus.PAUSED
-      : CampaignStatus.RUNNING;
+    const isPrivileged = ["ADMIN", "MANAGER"].includes(user.role);
+    const isOwner = campaignMeta.createdById === user.userId;
+    if (!isPrivileged && !isOwner) {
+      return errorResponse("Forbidden: You do not have permission to pause this campaign", 403);
+    }
+
+    const newStatus =
+      campaignMeta.status === CampaignStatus.RUNNING
+        ? CampaignStatus.PAUSED
+        : CampaignStatus.RUNNING;
 
     const updated = await prisma.campaign.update({
       where: { id: params.id },
       data: { status: newStatus },
     });
 
-    return successResponse(
-      updated,
-      `Campaign status updated to ${newStatus}.`
-    );
+    return successResponse(updated, `Campaign status updated to ${newStatus}.`);
   } catch (error) {
     return handleApiError(error);
   }
 }
+

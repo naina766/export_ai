@@ -14,6 +14,19 @@ export async function GET(
     const user = await getAuthUser(req);
     if (!user) return errorResponse("Unauthorized", 401);
 
+    // Lightweight ownership check before loading any sensitive email content
+    const campaignMeta = await prisma.campaign.findUnique({
+      where: { id: params.id },
+      select: { id: true, createdById: true },
+    });
+    if (!campaignMeta) return errorResponse("Campaign not found", 404);
+
+    const isPrivileged = ["ADMIN", "MANAGER"].includes(user.role);
+    const isOwner = campaignMeta.createdById === user.userId;
+    if (!isPrivileged && !isOwner) {
+      return errorResponse("Forbidden: You do not have permission to preview this campaign", 403);
+    }
+
     const emails = await prisma.personalizedEmail.findMany({
       where: { campaignId: params.id },
       include: {

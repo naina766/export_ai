@@ -1,9 +1,14 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getAuthUser } from "@/lib/auth";
+import { errorResponse } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
+  const user = await getAuthUser(req);
+  if (!user) return errorResponse("Unauthorized", 401);
+
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
@@ -60,47 +65,12 @@ export async function GET(req: NextRequest) {
               activeJobs: runningJobsCount,
               qualifiedBuyers: qualifiedCount,
               runningCampaigns: runningCampaignsCount,
-              totalPipeline: totalPipelineAgg._sum.inquiryValue ? Number(totalPipelineAgg._sum.inquiryValue) : 48600,
+              totalPipeline: totalPipelineAgg._sum.inquiryValue
+                ? Number(totalPipelineAgg._sum.inquiryValue)
+                : 0,
             },
             jobs: recentLogs,
-            recentEvents: [
-              {
-                id: "ev-1",
-                type: "AI_QUALIFIED",
-                title: "AI Qualified Buyer",
-                description: "Sound Immersion LLC scored 94/100 (High Intent)",
-                timestamp: "Just now",
-                category: "AI",
-                link: "/leads",
-              },
-              {
-                id: "ev-2",
-                type: "BUYER_REPLIED",
-                title: "Buyer Replied",
-                description: "Klangschalen Zentrum München requested CIF Hamburg quotation",
-                timestamp: "12m ago",
-                category: "SALES",
-                link: "/quotations",
-              },
-              {
-                id: "ev-3",
-                type: "DISCOVERY_COMPLETED",
-                title: "Discovery Batch Completed",
-                description: "124 new singing bowls wholesale buyers normalized & verified",
-                timestamp: "35m ago",
-                category: "DISCOVERY",
-                link: "/discovery",
-              },
-              {
-                id: "ev-4",
-                type: "QUOTE_GENERATED",
-                title: "Quotation Generated",
-                description: "EXP-2026-000001 ($14,200 CIF Hamburg) dispatched",
-                timestamp: "1h ago",
-                category: "SALES",
-                link: "/quotations",
-              },
-            ],
+            recentEvents: [],
           };
 
           const data = `data: ${JSON.stringify(payload)}\n\n`;

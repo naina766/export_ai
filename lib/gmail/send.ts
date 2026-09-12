@@ -101,13 +101,27 @@ export async function sendEmailViaGmail(params: SendEmailParams): Promise<SendEm
 
   const authData = await getAuthenticatedOAuth2Client(userId);
 
-  // If no Gmail account connected, simulate sending in local/dev test environment
+  // If no Gmail account connected — fail closed in production, simulate in dev/test
   if (!authData) {
-    console.log(`[Gmail Service: Simulation] Dispatched email to ${toEmail} for lead ${leadId}. Subject: "${subject}"`);
+    if (process.env.NODE_ENV === "production") {
+      console.error(
+        `[Gmail Service] NOT_CONFIGURED: No Gmail account connected for user ${userId}. Email to ${toEmail} was NOT sent.`
+      );
+      return {
+        success: false,
+        senderEmail: "",
+        error: "NOT_CONFIGURED: Gmail account not connected. No email was sent.",
+      };
+    }
+    // Development / test: simulate sending so local dev works without real credentials
+    console.log(
+      `[Gmail Service: DEV_SIMULATION] Would send email to ${toEmail} for lead ${leadId}. Subject: "${subject}"`
+    );
     return {
-      success: true,
-      providerMessageId: `sim_msg_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-      senderEmail: "sales@exportai-singingbowls.com",
+      success: false, // still false to prevent confusion in dev logs
+      providerMessageId: `dev_sim_${Date.now()}`,
+      senderEmail: "dev-simulation@localhost",
+      error: "DEV_SIMULATION: Gmail not connected in development environment.",
     };
   }
 
