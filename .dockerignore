@@ -40,11 +40,6 @@ yarn-error.log*
 .pnpm-debug.log*
 *.log
 
-# Docker files
-Dockerfile*
-docker-compose*.yml
-.dockerignore
-
 # Local SQLite databases
 *.db
 *.db-journal
