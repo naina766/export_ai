@@ -50,7 +50,16 @@ export async function createConsumer<T = unknown>(
   const channel = await rabbitmq.getChannel();
 
   if (!channel) {
-    throw new Error(`[Consumer: ${queueName}] Cannot start: Channel is unavailable.`);
+    console.warn(`[Consumer: ${queueName}] Channel unavailable at boot. Registering standby listener...`);
+    const retryTimer = setInterval(async () => {
+      const ch = await rabbitmq.getChannel();
+      if (ch) {
+        clearInterval(retryTimer);
+        console.log(`[Consumer: ${queueName}] Channel acquired. Activating consumer...`);
+        await createConsumer(queueOrOptions, handlerOrOptions, extraOptions);
+      }
+    }, 5000);
+    return;
   }
 
   await channel.prefetch(prefetch);
@@ -61,9 +70,19 @@ export async function createConsumer<T = unknown>(
 
     const startTime = Date.now();
     let parsedData: ConsumerPayload<T> | null = null;
+    let isMalformed = false;
 
     try {
-      parsedData = JSON.parse(msg.content.toString()) as ConsumerPayload<T>;
+      try {
+        parsedData = JSON.parse(msg.content.toString()) as ConsumerPayload<T>;
+        if (!parsedData || typeof parsedData !== "object") {
+          throw new Error("Message body is not a valid JSON object");
+        }
+      } catch (parseError) {
+        isMalformed = true;
+        throw new Error(`Malformed JSON message: ${(parseError as Error).message}`);
+      }
+
       const correlationId = msg.properties.correlationId || parsedData.aggregateId;
 
       // Log job execution start
@@ -107,26 +126,40 @@ export async function createConsumer<T = unknown>(
       const durationMs = Date.now() - startTime;
       console.error(`[Consumer: ${queueName}] Error processing message:`, err.message);
 
+      // Malformed JSON is never retryable: reject immediately to Dead Letter Queue
+      if (isMalformed) {
+        console.error(`[Consumer: ${queueName}] Malformed message detected. Rejecting to Dead Letter Queue without retry.`);
+        channel.nack(msg, false, false);
+        return;
+      }
+
       const headers = msg.properties.headers || {};
       const retryCount = (headers["x-retry-count"] as number) || 0;
 
       if (retryCount < maxRetries) {
-        // Increment retry and republish to queue
-        console.warn(`[Consumer: ${queueName}] Retrying job (attempt ${retryCount + 1}/${maxRetries})...`);
+        // Calculate backoff delay: 1s, 2s, 4s (max 10s)
+        const backoffMs = Math.min(1000 * Math.pow(2, retryCount), 10000);
+        console.warn(`[Consumer: ${queueName}] Retrying job (attempt ${retryCount + 1}/${maxRetries}) after ${backoffMs}ms backoff...`);
         channel.ack(msg);
 
-        channel.publish(
-          EXCHANGES.JOBS,
-          msg.fields.routingKey,
-          msg.content,
-          {
-            ...msg.properties,
-            headers: {
-              ...headers,
-              "x-retry-count": retryCount + 1,
-            },
+        setTimeout(() => {
+          try {
+            channel.publish(
+              EXCHANGES.JOBS,
+              msg.fields.routingKey,
+              msg.content,
+              {
+                ...msg.properties,
+                headers: {
+                  ...headers,
+                  "x-retry-count": retryCount + 1,
+                },
+              }
+            );
+          } catch (pubErr) {
+            console.error(`[Consumer: ${queueName}] Failed to republish retry message:`, pubErr);
           }
-        );
+        }, backoffMs);
 
         if (parsedData?.eventId) {
           await prisma.jobLog.update({

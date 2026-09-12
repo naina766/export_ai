@@ -35,10 +35,14 @@ export const TOPOLOGY_BINDINGS: QueueBinding[] = [
   { queue: QUEUES.REPORT, routingKey: ROUTING_KEYS.REPORT_GENERATE },
 ];
 
+let isTopologyAsserted = false;
+
 /**
  * Asserts durable topic exchanges, dead-letter queues, and bindings.
  */
-export async function assertTopology(channel: Channel): Promise<void> {
+export async function assertTopology(channel: Channel, force = false): Promise<void> {
+  if (isTopologyAsserted && !force) return;
+
   // 1. Assert Dead Letter Exchange and Queue
   await channel.assertExchange(EXCHANGES.DLX, "direct", { durable: true });
   await channel.assertQueue(QUEUES.DEAD_LETTER, { durable: true });
@@ -60,5 +64,6 @@ export async function assertTopology(channel: Channel): Promise<void> {
     await channel.bindQueue(binding.queue, EXCHANGES.JOBS, binding.routingKey);
   }
 
+  isTopologyAsserted = true;
   console.log("[RabbitMQ] Topology successfully asserted (Exchanges, Queues, DLQ, Bindings).");
 }

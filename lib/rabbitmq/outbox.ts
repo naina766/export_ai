@@ -28,7 +28,11 @@ export async function createOutboxEvent(
 ) {
   return tx.outboxEvent.upsert({
     where: { eventKey: params.eventKey },
-    update: {},
+    update: {
+      status: "PENDING",
+      error: null,
+      payload: params.payload as Prisma.InputJsonValue,
+    },
     create: {
       eventKey: params.eventKey,
       eventType: params.eventType,
