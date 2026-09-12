@@ -98,6 +98,7 @@ export async function startAIWorker() {
               bodyHtml: personalized.bodyHtml,
               bodyText: personalized.bodyText,
               aiGenerated: true,
+              isApproved: false,
             },
             create: {
               campaignId,

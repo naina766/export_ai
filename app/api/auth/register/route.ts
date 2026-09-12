@@ -39,26 +39,29 @@ export async function POST(req: NextRequest) {
     const hashedPassword = await bcrypt.hash(password, 12);
 
     // First user is auto-approved as admin bootstrap; all subsequent public registrations are AGENT
-    const userCount = await prisma.user.count();
-    const isFirstUser = userCount === 0;
+    // Wrapped in a transaction to prevent concurrent registration race condition
+    const user = await prisma.$transaction(async (tx) => {
+      const userCount = await tx.user.count();
+      const isFirstUser = userCount === 0;
 
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword,
-        phone,
-        role: isFirstUser ? "ADMIN" : "AGENT",
-        isApproved: true,
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        isApproved: true,
-        createdAt: true,
-      },
+      return tx.user.create({
+        data: {
+          name,
+          email,
+          password: hashedPassword,
+          phone,
+          role: isFirstUser ? "ADMIN" : "AGENT",
+          isApproved: true,
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          isApproved: true,
+          createdAt: true,
+        },
+      });
     });
 
     // Log audit

@@ -30,10 +30,17 @@ export function generateUnsubscribeToken(leadId: string, email: string, campaign
   return `${base64Data}.${signature}`;
 }
 
+// Unsubscribe tokens are valid for 90 days to respect CAN-SPAM/GDPR while preventing indefinite replay
+export const UNSUBSCRIBE_TOKEN_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
+
 /**
  * Verifies a signed unsubscribe token and extracts the payload.
+ * Checks HMAC signature and enforces token expiry.
  */
-export function verifyUnsubscribeToken(token: string): UnsubscribeTokenPayload | null {
+export function verifyUnsubscribeToken(
+  token: string,
+  maxAgeMs: number = UNSUBSCRIBE_TOKEN_MAX_AGE_MS
+): UnsubscribeTokenPayload | null {
   if (!token || !token.includes(".")) return null;
 
   try {
@@ -55,7 +62,18 @@ export function verifyUnsubscribeToken(token: string): UnsubscribeTokenPayload |
     }
 
     const json = Buffer.from(base64Data, "base64url").toString("utf8");
-    return JSON.parse(json) as UnsubscribeTokenPayload;
+    const payload = JSON.parse(json) as UnsubscribeTokenPayload;
+
+    if (!payload.leadId || !payload.email || !payload.issuedAt) {
+      return null;
+    }
+
+    // Enforce expiry
+    if (Date.now() - payload.issuedAt > maxAgeMs) {
+      return null; // Expired token
+    }
+
+    return payload;
   } catch {
     return null;
   }

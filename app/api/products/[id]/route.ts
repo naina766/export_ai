@@ -39,6 +39,9 @@ export async function PATCH(
     const params = await props.params;
     const user = await getAuthUser(req);
     if (!user) return errorResponse("Unauthorized", 401);
+    if (!["ADMIN", "MANAGER"].includes(user.role)) {
+      return errorResponse("Forbidden: Only Admins and Managers can modify export products", 403);
+    }
 
     const body = await req.json();
     const parsed = UpdateProductSchema.safeParse(body);
@@ -71,6 +74,9 @@ export async function DELETE(
     const params = await props.params;
     const user = await getAuthUser(req);
     if (!user) return errorResponse("Unauthorized", 401);
+    if (!["ADMIN", "MANAGER"].includes(user.role)) {
+      return errorResponse("Forbidden: Only Admins and Managers can delete export products", 403);
+    }
 
     await prisma.product.delete({ where: { id: params.id } });
     return successResponse({ id: params.id }, "Product deleted successfully");

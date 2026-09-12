@@ -140,11 +140,11 @@ export async function createConsumer<T = unknown>(
         // Calculate backoff delay: 1s, 2s, 4s (max 10s)
         const backoffMs = Math.min(1000 * Math.pow(2, retryCount), 10000);
         console.warn(`[Consumer: ${queueName}] Retrying job (attempt ${retryCount + 1}/${maxRetries}) after ${backoffMs}ms backoff...`);
-        channel.ack(msg);
 
         setTimeout(() => {
           try {
-            channel.publish(
+            // Publish replacement message with incremented retry header before acking original
+            const published = channel.publish(
               EXCHANGES.JOBS,
               msg.fields.routingKey,
               msg.content,
@@ -156,8 +156,15 @@ export async function createConsumer<T = unknown>(
                 },
               }
             );
+            if (published) {
+              channel.ack(msg);
+            } else {
+              // Channel buffer full; requeue original to avoid loss
+              channel.nack(msg, false, true);
+            }
           } catch (pubErr) {
-            console.error(`[Consumer: ${queueName}] Failed to republish retry message:`, pubErr);
+            console.error(`[Consumer: ${queueName}] Failed to republish retry message; requeuing original:`, pubErr);
+            channel.nack(msg, false, true);
           }
         }, backoffMs);
 

@@ -5,11 +5,25 @@ const IV_LENGTH = 12; // 96 bits for GCM
 const AUTH_TAG_LENGTH = 16; // 128 bits
 
 function getEncryptionKey(): Buffer {
-  const secret = process.env.TOKEN_ENCRYPTION_KEY || "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+  const secret = process.env.TOKEN_ENCRYPTION_KEY;
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("FATAL: TOKEN_ENCRYPTION_KEY is required in production.");
+    }
+    // Isolated local development fallback only
+    const devFallback = "dev-token-encryption-key-32-chars-ok!";
+    return crypto.createHash("sha256").update(devFallback).digest();
+  }
+
   // If hex string of 64 chars -> 32 bytes
   if (secret.length === 64 && /^[0-9a-fA-F]+$/.test(secret)) {
     return Buffer.from(secret, "hex");
   }
+
+  if (process.env.NODE_ENV === "production" && secret.length < 32) {
+    throw new Error("FATAL: TOKEN_ENCRYPTION_KEY must be at least 32 characters in production.");
+  }
+
   // Otherwise derive 32-byte key via SHA-256
   return crypto.createHash("sha256").update(secret).digest();
 }

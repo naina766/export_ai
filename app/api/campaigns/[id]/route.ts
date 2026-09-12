@@ -55,6 +55,20 @@ export async function DELETE(
     const user = await getAuthUser(req);
     if (!user) return errorResponse("Unauthorized", 401);
 
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: params.id },
+      select: { id: true, createdById: true },
+    });
+
+    if (!campaign) return errorResponse("Campaign not found", 404);
+
+    const isPrivileged = ["ADMIN", "MANAGER"].includes(user.role);
+    const isOwner = campaign.createdById === user.userId;
+
+    if (!isPrivileged && !isOwner) {
+      return errorResponse("Forbidden: You do not have permission to delete this campaign", 403);
+    }
+
     await prisma.campaign.delete({ where: { id: params.id } });
     return successResponse({ id: params.id }, "Campaign deleted successfully");
   } catch (error) {

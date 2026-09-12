@@ -59,6 +59,23 @@ export async function PATCH(
       return errorResponse("Validation failed", 400, parsed.error.flatten());
     }
 
+    const existingLead = await prisma.buyerLead.findUnique({
+      where: { id: params.id },
+      select: { id: true, assignedToId: true, createdById: true },
+    });
+
+    if (!existingLead) return errorResponse("Buyer lead not found", 404);
+
+    const isPrivileged = ["ADMIN", "MANAGER"].includes(user.role);
+    const isOwner =
+      existingLead.assignedToId === user.userId ||
+      existingLead.createdById === user.userId ||
+      (!existingLead.assignedToId && !existingLead.createdById);
+
+    if (!isPrivileged && !isOwner) {
+      return errorResponse("Forbidden: You do not have permission to modify this buyer lead", 403);
+    }
+
     const lead = await prisma.buyerLead.update({
       where: { id: params.id },
       data: parsed.data,

@@ -16,13 +16,64 @@ export function getOAuth2Client() {
   return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 }
 
+import crypto from "crypto";
+
+export interface OAuthStatePayload {
+  userId: string;
+  nonce: string;
+  issuedAt: number;
+}
+
+const OAUTH_STATE_MAX_AGE_MS = 15 * 60 * 1000; // 15 minutes
+
+export function generateOAuthState(userId: string): string {
+  const payload: OAuthStatePayload = {
+    userId,
+    nonce: crypto.randomBytes(16).toString("hex"),
+    issuedAt: Date.now(),
+  };
+
+  const secret = process.env.JWT_SECRET || "dev-oauth-state-secret-32-chars-long";
+  const data = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const hmac = crypto.createHmac("sha256", secret).update(data).digest("base64url");
+  return `${data}.${hmac}`;
+}
+
+export function verifyOAuthState(state: string | null | undefined): { userId: string } | null {
+  if (!state || !state.includes(".")) return null;
+
+  try {
+    const [data, hmac] = state.split(".");
+    if (!data || !hmac) return null;
+
+    const secret = process.env.JWT_SECRET || "dev-oauth-state-secret-32-chars-long";
+    const expectedHmac = crypto.createHmac("sha256", secret).update(data).digest("base64url");
+
+    if (!crypto.timingSafeEqual(Buffer.from(hmac), Buffer.from(expectedHmac))) {
+      return null;
+    }
+
+    const payload = JSON.parse(Buffer.from(data, "base64url").toString("utf8")) as OAuthStatePayload;
+    if (!payload.userId || !payload.issuedAt) return null;
+
+    if (Date.now() - payload.issuedAt > OAUTH_STATE_MAX_AGE_MS) {
+      return null; // Expired
+    }
+
+    return { userId: payload.userId };
+  } catch {
+    return null;
+  }
+}
+
 export function generateAuthUrl(userId: string): string {
   const oauth2Client = getOAuth2Client();
+  const secureState = generateOAuthState(userId);
   return oauth2Client.generateAuthUrl({
     access_type: "offline",
     prompt: "consent",
     scope: SCOPES,
-    state: userId,
+    state: secureState,
   });
 }
 

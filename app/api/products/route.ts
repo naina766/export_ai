@@ -60,6 +60,9 @@ export async function POST(req: NextRequest) {
   try {
     const user = await getAuthUser(req);
     if (!user) return errorResponse("Unauthorized", 401);
+    if (!["ADMIN", "MANAGER"].includes(user.role)) {
+      return errorResponse("Forbidden: Only Admins and Managers can add export products", 403);
+    }
 
     const body = await req.json();
     const parsed = CreateProductSchema.safeParse(body);
