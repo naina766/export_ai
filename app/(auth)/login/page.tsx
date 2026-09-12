@@ -73,7 +73,7 @@ function LoginForm() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, rememberMe }),
       });
       const data = await res.json();
 
@@ -195,6 +195,19 @@ function LoginForm() {
                   <p className="text-xs text-slate-400 font-mono">admin@exportai.com</p>
                 </div>
                 <span className="text-xs font-mono text-[#6366F1] bg-[#6366F1]/10 px-2.5 py-0.5 rounded font-medium">
+                  Autofill
+                </span>
+              </div>
+
+              <div
+                onClick={() => handleFillDemo("manager@exportai.com", "Manager@123456")}
+                className="p-3 rounded-lg bg-[#0D121C] border border-white/[0.08] hover:border-[#10B981]/50 cursor-pointer transition-colors flex items-center justify-between"
+              >
+                <div>
+                  <p className="text-xs font-semibold text-[#F8FAFC]">Sales Manager</p>
+                  <p className="text-xs text-slate-400 font-mono">manager@exportai.com</p>
+                </div>
+                <span className="text-xs font-mono text-[#10B981] bg-[#10B981]/10 px-2.5 py-0.5 rounded font-medium">
                   Autofill
                 </span>
               </div>

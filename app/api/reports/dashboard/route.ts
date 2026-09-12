@@ -27,7 +27,10 @@ export async function GET(req: NextRequest) {
       prisma.campaign.count(),
       prisma.salesOpportunity.count(),
       prisma.quotation.count(),
-      prisma.salesOpportunity.aggregate({ _sum: { inquiryValue: true } }),
+      prisma.salesOpportunity.aggregate({
+        where: { stage: { notIn: ["CLOSED_WON", "CLOSED_LOST"] } },
+        _sum: { inquiryValue: true },
+      }),
       prisma.buyerLead.findMany({
         take: 5,
         orderBy: { createdAt: "desc" },

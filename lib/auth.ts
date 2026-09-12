@@ -56,9 +56,14 @@ export async function verifyToken(token: string): Promise<JWTPayload | null> {
 
 export async function setAuthCookies(
   accessToken: string,
-  refreshToken: string
+  refreshToken: string,
+  rememberMe: boolean = false
 ) {
   const cookieStore = await cookies();
+  const refreshMaxAge = rememberMe
+    ? 30 * 24 * 60 * 60 // 30 days
+    : 7 * 24 * 60 * 60; // 7 days
+
   cookieStore.set("access_token", accessToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -70,7 +75,7 @@ export async function setAuthCookies(
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    maxAge: 7 * 24 * 60 * 60, // 7 days
+    maxAge: refreshMaxAge,
     path: "/",
   });
 }

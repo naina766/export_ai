@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Sparkles,
@@ -34,9 +34,9 @@ const marketSignals = [
     opportunity: "94%",
     summary: "Demand for singing bowls is increasing among meditation studios.",
     signals: [
-      "+18% inquiry volume",
-      "+24.2% reply rate",
-      "+12% average order value",
+      "High inquiry volume in DACH corridor",
+      "Strong CIF Hamburg terms preference",
+      "Meditation studio sector alignment",
     ],
     actionText: "Explore German Buyers",
     actionHref: "/leads?country=Germany",
@@ -47,8 +47,8 @@ const marketSignals = [
     opportunity: "91%",
     summary: "Sound therapy clinics seeking bulk 432Hz 7-chakra tuned sets with certificates.",
     signals: [
-      "+14% wholesale inquiries",
-      "+21.4% reply rate",
+      "Wholesale inquiries for sound clinics",
+      "Demand for 432Hz acoustic certificates",
       "Average MOQ 50 units",
     ],
     actionText: "Explore US Buyers",
@@ -60,9 +60,9 @@ const marketSignals = [
     opportunity: "88%",
     summary: "Holistic retailers expanding Himalayan artisanal wellness product lines.",
     signals: [
-      "+9% inquiry acceleration",
-      "+18.5% reply rate",
-      "Full Moon bowls popularity",
+      "Artisanal wellness line expansion",
+      "Full Moon bowls interest",
+      "Holistic retail corridor demand",
     ],
     actionText: "Explore UK Buyers",
     actionHref: "/leads?country=UK",
@@ -131,7 +131,7 @@ const salesRecommendations = [
   {
     title: "Re-engage Unresponsive UK Inquiries",
     confidence: "86% confidence",
-    reason: "Follow-up sequences sent after 48 hours with sample acoustic video clips yield 32% recovery.",
+    reason: "Follow-up sequences sent after 48 hours with sample acoustic sound clips show higher engagement.",
     actionText: "Schedule Follow-ups",
     actionHref: "/follow-ups",
   },
@@ -139,6 +139,18 @@ const salesRecommendations = [
 
 export default function AIIntelligenceCenterPage() {
   const [isGenerating, setIsGenerating] = useState(false);
+  const [data, setData] = useState<any>(null);
+
+  useEffect(() => {
+    fetch("/api/analytics/overview")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (json?.success && json?.data) {
+          setData(json.data);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handleGenerateReport = () => {
     setIsGenerating(true);
@@ -147,6 +159,8 @@ export default function AIIntelligenceCenterPage() {
       toast.success("Generated AI Weekly Intelligence Report (PDF)");
     }, 1200);
   };
+
+  const kpis = data?.kpis;
 
   return (
     <div className="space-y-8 max-w-[1600px] mx-auto pb-20 font-sans">
@@ -167,27 +181,35 @@ export default function AIIntelligenceCenterPage() {
         }
       />
 
-      {/* ── CONTINUOUS KPI STRIP ── */}
+      {/* ── CONTINUOUS KPI STRIP (100% Database-Backed) ── */}
       <div className="rounded-xl bg-[#0B0F14] border border-white/[0.08] p-6 grid grid-cols-2 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x divide-white/[0.08] gap-6 lg:gap-0">
         <div className="lg:px-6 first:pl-0 space-y-2">
-          <span className="text-sm font-medium text-slate-400 block">Market Opportunities</span>
-          <div className="text-2xl font-semibold tracking-tight text-[#F8FAFC] font-mono tabular-nums">12</div>
-          <span className="text-sm font-mono text-[#10B981] flex items-center gap-1">+3 active corridors</span>
+          <span className="text-sm font-medium text-slate-400 block">Open Opportunities</span>
+          <div className="text-2xl font-semibold tracking-tight text-[#F8FAFC] font-mono tabular-nums">
+            {kpis?.openOpportunities !== undefined ? kpis.openOpportunities : "..."}
+          </div>
+          <span className="text-xs font-mono text-[#10B981] flex items-center gap-1">Active Deal Flow</span>
         </div>
         <div className="lg:px-6 pt-4 lg:pt-0 space-y-2">
           <span className="text-sm font-medium text-slate-400 block">High Intent Buyers</span>
-          <div className="text-2xl font-semibold tracking-tight text-[#F8FAFC] font-mono tabular-nums">86</div>
-          <span className="text-sm font-mono text-[#10B981] flex items-center gap-1">+18% high-fit fit</span>
+          <div className="text-2xl font-semibold tracking-tight text-[#F8FAFC] font-mono tabular-nums">
+            {kpis?.qualifiedBuyers !== undefined ? kpis.qualifiedBuyers : "..."}
+          </div>
+          <span className="text-xs font-mono text-[#10B981] flex items-center gap-1">Score ≥ 80 / 100</span>
         </div>
         <div className="lg:px-6 pt-4 lg:pt-0 space-y-2">
-          <span className="text-sm font-medium text-slate-400 block">AI Recommendations</span>
-          <div className="text-2xl font-semibold tracking-tight text-[#F8FAFC] font-mono tabular-nums">24</div>
-          <span className="text-sm font-mono text-[#818cf8] flex items-center gap-1">Actionable Copilot</span>
+          <span className="text-sm font-medium text-slate-400 block">Active Campaigns</span>
+          <div className="text-2xl font-semibold tracking-tight text-[#F8FAFC] font-mono tabular-nums">
+            {kpis?.activeCampaigns !== undefined ? kpis.activeCampaigns : "..."}
+          </div>
+          <span className="text-xs font-mono text-[#818cf8] flex items-center gap-1">Outreach Sequences</span>
         </div>
         <div className="lg:px-6 last:pr-0 pt-4 lg:pt-0 space-y-2">
-          <span className="text-sm font-medium text-slate-400 block">Predicted Pipeline</span>
-          <div className="text-2xl font-semibold tracking-tight text-[#F8FAFC] font-mono tabular-nums">$72,400</div>
-          <span className="text-sm font-mono text-[#10B981] flex items-center gap-1">+28.4% conversion</span>
+          <span className="text-sm font-medium text-slate-400 block">Pipeline Value</span>
+          <div className="text-2xl font-semibold tracking-tight text-[#10B981] font-mono tabular-nums">
+            {kpis?.pipelineValue !== undefined ? `$${kpis.pipelineValue.toLocaleString()}` : "..."}
+          </div>
+          <span className="text-xs font-mono text-slate-400 flex items-center gap-1">Open Inquiries Sum</span>
         </div>
       </div>
 

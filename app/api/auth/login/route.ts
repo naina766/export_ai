@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
       return errorResponse("Validation failed", 400, parsed.error.flatten());
     }
 
-    const { email, password } = parsed.data;
+    const { email, password, rememberMe } = parsed.data;
 
     const user = await prisma.user.findUnique({
       where: { email },
@@ -72,12 +72,13 @@ export async function POST(req: NextRequest) {
     const accessToken = await signAccessToken(tokenPayload);
     const refreshToken = await signRefreshToken(tokenPayload);
 
-    // Store refresh token
+    // Store refresh token (30 days if rememberMe, otherwise 7 days)
+    const refreshExpiryDays = rememberMe ? 30 : 7;
     await prisma.refreshToken.create({
       data: {
         token: refreshToken,
         userId: user.id,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        expiresAt: new Date(Date.now() + refreshExpiryDays * 24 * 60 * 60 * 1000),
       },
     });
 
@@ -99,7 +100,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    await setAuthCookies(accessToken, refreshToken);
+    await setAuthCookies(accessToken, refreshToken, !!rememberMe);
 
     const { password: _, ...userWithoutPassword } = user;
 

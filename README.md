@@ -106,9 +106,6 @@ Detailed architectural and engineering documents are available in the `docs/` di
 1. 📖 **[System Architecture Guide](docs/ARCHITECTURE.md)**: Deep dive into the client, API, database, messaging, and worker layers.
 2. 🔄 **[RabbitMQ & Transactional Outbox](docs/OUTBOX_RABBITMQ.md)**: The dual-write problem, transaction mechanics, topology, and DLQ routing.
 3. 🤖 **[AI Integration & Security](docs/AI_ARCHITECTURE.md)**: Prompt injection defense, input sanitization, Zod output schemas, and fallback scoring.
-4. 💼 **[Technical Interview Guide](docs/INTERVIEW_GUIDE.md)**: 30+ in-depth interview questions and code-grounded answers across PostgreSQL, RabbitMQ, AI, Security, and System Design.
-5. 🛡️ **[Verified Resume Claims](docs/RESUME_CLAIMS.md)**: Matrix of verifiable portfolio claims with source code references.
-6. 📋 **[Finalization Report](docs/FINALIZATION_REPORT.md)**: Detailed audit summary, verification outputs, and files modified.
 
 ---
 
@@ -121,8 +118,8 @@ Detailed architectural and engineering documents are available in the `docs/` di
 
 ### 2. Clone and Install Dependencies
 ```bash
-git clone https://github.com/naina766/real_estate_crm.git
-cd real-estate-crm
+git clone https://github.com/naina766/export_ai.git
+cd export_ai
 npm install
 ```
 
@@ -218,6 +215,6 @@ npm run build
 
 | Role | Email | Password | Access Rights |
 | :--- | :--- | :--- | :--- |
-| **Admin** | `admin@exportai.com` | `Admin@1234` | System Configuration, User Management, Global Deletions |
-| **Manager** | `manager@exportai.com` | `Agent@1234` | Campaigns, Leads, Pipeline, Quotations & Discovery |
-| **Agent** | `agent@exportai.com` | `Agent@1234` | Assigned Leads, Quotations & Outreach |
+| **Admin** | `admin@exportai.com` | `Admin@123456` | System Configuration, User Management, Global Deletions |
+| **Manager** | `manager@exportai.com` | `Manager@123456` | Campaigns, Leads, Pipeline, Quotations & Discovery |
+| **Agent** | `agent@exportai.com` | `Agent@123456` | Assigned Leads, Quotations & Outreach |

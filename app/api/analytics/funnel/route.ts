@@ -14,63 +14,80 @@ export async function GET(req: NextRequest) {
       validatedCount,
       qualifiedCount,
       contactedCount,
-      repliedCount,
-      opportunitiesCount,
-      quotationsCount,
+      interestedCount,
+      negotiatingCount,
+      quotationCount,
       wonCount,
     ] = await Promise.all([
+      // 1. Discovered: All buyer leads
       prisma.buyerLead.count(),
+      // 2. Validated: Verified email status
       prisma.buyerLead.count({ where: { emailStatus: "VALID" } }),
-      prisma.buyerLead.count({ where: { leadScore: { gte: 70 } } }),
+      // 3. AI Qualified: Score >= 80
+      prisma.buyerLead.count({ where: { leadScore: { gte: 80 } } }),
+      // 4. Contacted: Outreach sent or replied
       prisma.buyerLead.count({ where: { outreachStatus: { in: ["SENT", "REPLIED"] } } }),
+      // 5. Interested: Buyer replied / engaged
       prisma.buyerLead.count({ where: { outreachStatus: "REPLIED" } }),
-      prisma.salesOpportunity.count(),
+      // 6. Negotiating: Opportunities in negotiation, quotation, or won
+      prisma.salesOpportunity.count({
+        where: { stage: { in: ["NEGOTIATION", "QUOTATION", "CLOSED_WON"] } },
+      }),
+      // 7. Quotation: Formal proforma quotations created
       prisma.quotation.count(),
+      // 8. Won: Closed won sales opportunities
       prisma.salesOpportunity.count({ where: { stage: "CLOSED_WON" } }),
     ]);
 
+    const base = discoveredCount > 0 ? discoveredCount : 1;
+
     const funnelStages = [
-      { name: "Discovered Buyers", count: discoveredCount, percentage: 100, color: "#3b82f6" },
       {
-        name: "Validated Emails",
+        name: "Discovered",
+        count: discoveredCount,
+        percentage: 100,
+        color: "#3b82f6",
+      },
+      {
+        name: "Validated",
         count: validatedCount,
-        percentage: discoveredCount > 0 ? Math.round((validatedCount / discoveredCount) * 100) : 0,
+        percentage: Math.min(100, Math.round((validatedCount / base) * 100)),
         color: "#06b6d4",
       },
       {
-        name: "AI Qualified Leads",
+        name: "AI Qualified",
         count: qualifiedCount,
-        percentage: discoveredCount > 0 ? Math.round((qualifiedCount / discoveredCount) * 100) : 0,
+        percentage: Math.min(100, Math.round((qualifiedCount / base) * 100)),
         color: "#6366f1",
       },
       {
-        name: "Outreach Sent",
+        name: "Contacted",
         count: contactedCount,
-        percentage: discoveredCount > 0 ? Math.round((contactedCount / discoveredCount) * 100) : 0,
+        percentage: Math.min(100, Math.round((contactedCount / base) * 100)),
         color: "#8b5cf6",
       },
       {
-        name: "Buyer Responses",
-        count: repliedCount,
-        percentage: contactedCount > 0 ? Math.round((repliedCount / contactedCount) * 100) : 0,
+        name: "Interested",
+        count: interestedCount,
+        percentage: Math.min(100, Math.round((interestedCount / base) * 100)),
         color: "#10b981",
       },
       {
-        name: "Sales Opportunities",
-        count: opportunitiesCount,
-        percentage: repliedCount > 0 ? Math.round((opportunitiesCount / repliedCount) * 100) : 0,
+        name: "Negotiating",
+        count: negotiatingCount,
+        percentage: Math.min(100, Math.round((negotiatingCount / base) * 100)),
         color: "#f59e0b",
       },
       {
-        name: "Export Quotations",
-        count: quotationsCount,
-        percentage: opportunitiesCount > 0 ? Math.round((quotationsCount / opportunitiesCount) * 100) : 0,
+        name: "Quotation",
+        count: quotationCount,
+        percentage: Math.min(100, Math.round((quotationCount / base) * 100)),
         color: "#ec4899",
       },
       {
-        name: "Closed Won Orders",
+        name: "Won",
         count: wonCount,
-        percentage: quotationsCount > 0 ? Math.round((wonCount / quotationsCount) * 100) : 0,
+        percentage: Math.min(100, Math.round((wonCount / base) * 100)),
         color: "#059669",
       },
     ];
