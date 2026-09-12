@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -15,20 +15,18 @@ import {
   Printer,
   FileText,
   Sparkles,
+  ShieldCheck,
+  Check,
 } from "lucide-react";
 import {
   Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-  CardFooter,
   Button,
   Input,
   Select,
   Textarea,
   Badge,
   PageHeader,
+  cn,
 } from "@/components/ui";
 import toast from "react-hot-toast";
 
@@ -38,6 +36,7 @@ interface Lead {
   country: string;
   contactPerson?: string | null;
   email?: string;
+  city?: string | null;
 }
 
 interface Product {
@@ -55,6 +54,14 @@ interface LineItem {
   unitPrice: number;
 }
 
+const INCOTERMS = [
+  { id: "FOB", label: "FOB", title: "Free on Board", desc: "Seller delivers goods loaded on vessel at origin port." },
+  { id: "CIF", label: "CIF", title: "Cost, Insurance, Freight", desc: "Seller covers sea freight & marine insurance to destination port." },
+  { id: "EXW", label: "EXW", title: "Ex Works", desc: "Buyer arranges pickup from artisan workshop in Nepal." },
+  { id: "CFR", label: "CFR", title: "Cost & Freight", desc: "Seller pays ocean transport; buyer procures insurance." },
+  { id: "DDP", label: "DDP", title: "Delivered Duty Paid", desc: "Seller bears all risks & customs clearance to buyer facility." },
+];
+
 export default function NewQuotationPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -63,24 +70,25 @@ export default function NewQuotationPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedLeadId, setSelectedLeadId] = useState(prefillLeadId);
-  const [tradeTerm, setTradeTerm] = useState("FOB");
+  const [tradeTerm, setTradeTerm] = useState("CIF");
   const [currency, setCurrency] = useState("USD");
-  const [shippingCost, setShippingCost] = useState(350);
+  const [shippingCost, setShippingCost] = useState(480);
   const [validDays, setValidDays] = useState(30);
+  const [destinationPort, setDestinationPort] = useState("Hamburg Port, Germany");
   const [notes, setNotes] = useState(
-    "1. Prices are in USD on FOB / CIF terms.\n2. Includes master export carton packaging and acoustic frequency certificate.\n3. Payment Terms: 30% advance on order confirmation, 70% against Bill of Lading (B/L)."
+    "1. Prices are in USD on CIF terms including air/ocean cargo insurance.\n2. Includes master export carton packaging, frequency testing, and acoustic certificates.\n3. Payment Terms: 30% advance on confirmation, 70% against Bill of Lading (B/L)."
   );
   const [items, setItems] = useState<LineItem[]>([
     {
-      productName: "Tibetan Master Hand-Hammered Singing Bowl (Grade AAA)",
+      productName: "Tibetan Master Hand-Hammered Singing Bowl (Grade AAA, 7-Metal)",
       sku: "SB-THH-001",
-      quantity: 20,
+      quantity: 25,
       unitPrice: 75.0,
     },
     {
-      productName: "7-Chakra Healing Singing Bowl Harmonic Set",
+      productName: "7-Chakra Healing Harmonic Singing Bowl Set (432Hz Tuned)",
       sku: "SB-7CK-SET",
-      quantity: 10,
+      quantity: 12,
       unitPrice: 220.0,
     },
   ]);
@@ -113,7 +121,7 @@ export default function NewQuotationPage() {
       {
         productName: "Full Moon Energized Meditation Singing Bowl",
         sku: "SB-FM-003",
-        quantity: 5,
+        quantity: 10,
         unitPrice: 135.0,
       },
     ]);
@@ -131,10 +139,14 @@ export default function NewQuotationPage() {
     setItems(updated);
   };
 
-  const subtotal = items.reduce((sum, item) => sum + (Number(item.quantity) || 1) * (Number(item.unitPrice) || 0), 0);
+  const subtotal = items.reduce(
+    (sum, item) => sum + (Number(item.quantity) || 1) * (Number(item.unitPrice) || 0),
+    0
+  );
   const grandTotal = subtotal + (Number(shippingCost) || 0);
 
   const selectedLead = leads.find((l) => l.id === selectedLeadId);
+  const activeIncoterm = INCOTERMS.find((t) => t.id === tradeTerm) || INCOTERMS[0];
 
   const handleSubmit = async (status: string = "DRAFT") => {
     if (!selectedLeadId) {
@@ -182,16 +194,16 @@ export default function NewQuotationPage() {
   };
 
   return (
-    <div className="space-y-8 max-w-[1100px] mx-auto pb-12">
+    <div className="space-y-8 max-w-[1600px] mx-auto pb-20 font-sans">
       {/* ── Page Header ── */}
       <PageHeader
-        title="Create Commercial Export Quotation"
-        subtitle="Construct official international wholesale price quotes with automated line item calculations."
+        title="Commercial Export Quotation Builder"
+        subtitle="Configure Incoterms, container quantities, and automated proforma invoices for international buyers."
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <Link href="/quotations">
               <Button variant="outline" size="sm" leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
-                Cancel
+                Back to Quotes
               </Button>
             </Link>
             <Button
@@ -209,7 +221,7 @@ export default function NewQuotationPage() {
               onClick={() => window.print()}
               leftIcon={<Printer className="w-3.5 h-3.5" />}
             >
-              Preview PDF
+              Print / Export PDF
             </Button>
             <Button
               variant="primary"
@@ -218,224 +230,322 @@ export default function NewQuotationPage() {
               onClick={() => handleSubmit("SENT")}
               leftIcon={<Send className="w-3.5 h-3.5" />}
             >
-              Send Quotation
+              Issue Quotation
             </Button>
           </div>
         }
       />
 
-      {/* ── Document-Style Quotation Sheet ── */}
-      <div className="bg-[#0D1118] border border-white/[0.08] rounded-xl overflow-hidden">
-        {/* Document Header */}
-        <div className="p-8 border-b border-white/[0.06] bg-[#111722]/50 flex flex-col md:flex-row justify-between gap-6">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-lg bg-[#D97706] flex items-center justify-center text-white font-bold">
-                <Globe2 className="w-5 h-5" />
+      {/* ── Two-Column Commercial Workspace (Form Left | Proforma Preview Right) ── */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
+        {/* ═════════════════════════════════════════════════════════════════════
+            LEFT COLUMN (7 cols): COMMERCIAL CONFIGURATION FORM
+        ═════════════════════════════════════════════════════════════════════ */}
+        <div className="xl:col-span-7 space-y-6">
+          {/* Section 1: Buyer Consignee */}
+          <div className="rounded-xl bg-[#0B0F14] border border-white/[0.08] p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
+              <h2 className="text-base font-semibold text-[#F8FAFC]">1. Consignee / Buyer Selection</h2>
+              <span className="text-xs font-mono text-slate-400">Linked to CRM Directory</span>
+            </div>
+
+            <div className="space-y-3">
+              <label className="text-xs font-mono uppercase tracking-wider text-slate-400 font-semibold block">
+                Select Buyer Lead *
+              </label>
+              <select
+                value={selectedLeadId}
+                onChange={(e) => setSelectedLeadId(e.target.value)}
+                className="w-full bg-[#05070B] border border-white/[0.1] rounded-lg px-3.5 h-11 text-sm text-[#F8FAFC] focus:outline-none focus:border-[#6366F1]"
+              >
+                {leads.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.companyName} — {l.country} ({l.contactPerson || "Procurement Lead"})
+                  </option>
+                ))}
+              </select>
+
+              {selectedLead && (
+                <div className="p-3 rounded-lg bg-[#0F141D] border border-white/[0.06] flex flex-wrap items-center justify-between text-xs text-slate-300 font-mono gap-2">
+                  <span>Contact: {selectedLead.contactPerson || "Procurement Lead"}</span>
+                  <span>Email: {selectedLead.email}</span>
+                  <span>Destination: {selectedLead.country}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Section 2: Prominent Incoterms & Trade Terms Selector */}
+          <div className="rounded-xl bg-[#0B0F14] border border-white/[0.08] p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
+              <div>
+                <h2 className="text-base font-semibold text-[#F8FAFC]">2. International Trade Terms (Incoterms 2026)</h2>
+                <p className="text-xs text-slate-400 mt-0.5">Determine freight allocation, insurance liability, and transfer of title</p>
+              </div>
+              <span className="text-xs font-mono text-[#818cf8] font-semibold bg-[#6366F1]/10 px-2 py-0.5 rounded border border-[#6366F1]/20">
+                Current: {activeIncoterm.label}
+              </span>
+            </div>
+
+            {/* Segmented Incoterms Buttons */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              {INCOTERMS.map((term) => {
+                const isSelected = tradeTerm === term.id;
+                return (
+                  <button
+                    key={term.id}
+                    type="button"
+                    onClick={() => setTradeTerm(term.id)}
+                    className={cn(
+                      "p-3 rounded-lg border text-left transition-all cursor-pointer select-none space-y-1",
+                      isSelected
+                        ? "bg-[#6366F1]/15 border-[#6366F1] text-white shadow-sm"
+                        : "bg-[#05070B] border-white/[0.08] text-slate-400 hover:border-white/[0.2] hover:text-slate-200"
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-bold font-mono">{term.label}</span>
+                      {isSelected && <Check className="w-3.5 h-3.5 text-[#818cf8]" />}
+                    </div>
+                    <p className="text-[10px] text-slate-400 leading-tight truncate">{term.title}</p>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Incoterm Explanation Callout */}
+            <div className="p-3 rounded-lg bg-[#0F141D] border border-white/[0.06] text-xs text-slate-300 space-y-1">
+              <span className="font-semibold text-[#818cf8] font-mono uppercase text-[11px] block">
+                {activeIncoterm.label}: {activeIncoterm.title}
+              </span>
+              <p className="text-slate-400 text-xs">{activeIncoterm.desc}</p>
+            </div>
+
+            {/* Currency & Logistics Inputs */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+              <div>
+                <Select
+                  label="Quotation Currency"
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value)}
+                  options={[
+                    { label: "USD ($) — Standard Export", value: "USD" },
+                    { label: "EUR (€) — European Corridor", value: "EUR" },
+                    { label: "GBP (£) — United Kingdom", value: "GBP" },
+                  ]}
+                />
               </div>
               <div>
-                <span className="text-base font-semibold text-[#F5F7FA] tracking-tight block">EXPORT AI</span>
-                <span className="text-xs text-[#D97706] font-mono font-medium block">PROFORMA INVOICE & QUOTE</span>
+                <Input
+                  label="Freight & Marine Insurance"
+                  type="number"
+                  value={shippingCost}
+                  onChange={(e) => setShippingCost(Number(e.target.value))}
+                />
+              </div>
+              <div>
+                <Input
+                  label="Quote Validity (Days)"
+                  type="number"
+                  value={validDays}
+                  onChange={(e) => setValidDays(Number(e.target.value))}
+                />
               </div>
             </div>
-            <p className="text-sm text-slate-400 pt-1">Himalayan Artisan Singing Bowls Export Guild</p>
-            <p className="text-xs text-slate-500">Kathmandu Valley • Master Artisan Guild</p>
           </div>
 
-          <div className="text-left md:text-right space-y-1">
-            <h2 className="text-xl font-semibold text-[#F5F7FA] tracking-tight">Commercial Export Quotation</h2>
-            <p className="text-sm font-mono text-[#D97706]">#QT-2026-001 (Auto-generated on Save)</p>
-            <p className="text-xs text-slate-400 font-mono">Date: {new Date().toLocaleDateString()}</p>
-          </div>
-        </div>
-
-        {/* Buyer Information & Logistics */}
-        <div className="p-8 border-b border-white/[0.06] grid grid-cols-1 md:grid-cols-3 gap-6 bg-[#0D1118]">
-          {/* Buyer Selector */}
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider font-mono block">Buyer / Consignee</label>
-            <select
-              value={selectedLeadId}
-              onChange={(e) => setSelectedLeadId(e.target.value)}
-              className="w-full bg-[#111722] border border-white/[0.08] rounded-lg px-3.5 h-11 text-sm text-[#F5F7FA] focus:outline-none focus:border-[#6366F1]"
-            >
-              {leads.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.companyName} ({l.country})
-                </option>
-              ))}
-            </select>
-            {selectedLead && (
-              <div className="text-xs text-slate-400 pt-1 space-y-0.5 font-mono">
-                <p>{selectedLead.contactPerson || "Procurement Contact"}</p>
-                <p>{selectedLead.email}</p>
+          {/* Section 3: Line Items */}
+          <div className="rounded-xl bg-[#0B0F14] border border-white/[0.08] p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
+              <div>
+                <h2 className="text-base font-semibold text-[#F8FAFC]">3. Export Products & Container Quantities</h2>
+                <p className="text-xs text-slate-400 mt-0.5">Specify product catalog items, artisan SKUs, units, and FOB/CIF rates</p>
               </div>
-            )}
-          </div>
-
-          {/* Trade Terms & Currency */}
-          <div className="space-y-3">
-            <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider font-mono block">Trade Terms</label>
-            <div className="grid grid-cols-2 gap-2">
-              <Select
-                label="Incoterms"
-                value={tradeTerm}
-                onChange={(e) => setTradeTerm(e.target.value)}
-                options={[
-                  { label: "FOB (Free on Board)", value: "FOB" },
-                  { label: "CIF (Cost, Insurance, Freight)", value: "CIF" },
-                  { label: "EXW (Ex Works)", value: "EXW" },
-                  { label: "CFR (Cost and Freight)", value: "CFR" },
-                  { label: "DDP (Delivered Duty Paid)", value: "DDP" },
-                ]}
-              />
-              <Select
-                label="Currency"
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
-                options={[
-                  { label: "USD ($)", value: "USD" },
-                  { label: "EUR (€)", value: "EUR" },
-                  { label: "GBP (£)", value: "GBP" },
-                  { label: "INR (₹)", value: "INR" },
-                ]}
-              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleAddItem}
+                leftIcon={<Plus className="w-3.5 h-3.5 text-[#D97706]" />}
+              >
+                Add Item
+              </Button>
             </div>
-          </div>
 
-          {/* Validity & Shipping */}
-          <div className="space-y-3">
-            <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider font-mono block">Logistics & Validity</label>
-            <div className="grid grid-cols-2 gap-2">
-              <Input
-                label="Validity (Days)"
-                type="number"
-                value={validDays}
-                onChange={(e) => setValidDays(Number(e.target.value))}
-              />
-              <Input
-                label="Freight & Insurance ($)"
-                type="number"
-                value={shippingCost}
-                onChange={(e) => setShippingCost(Number(e.target.value))}
-              />
-            </div>
-          </div>
-        </div>
+            <div className="space-y-3">
+              {items.map((item, idx) => (
+                <div key={idx} className="p-4 rounded-xl bg-[#0F141D] border border-white/[0.06] space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-mono text-slate-400 font-semibold">Item #{idx + 1}</span>
+                    {items.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveItem(idx)}
+                        className="text-slate-500 hover:text-[#EF4444] text-xs font-mono transition-colors cursor-pointer"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
 
-        {/* Product Line Items */}
-        <div className="p-8 border-b border-white/[0.06] space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-[#F5F7FA] uppercase tracking-wider font-mono">Product Line Items</h3>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleAddItem}
-              leftIcon={<Plus className="w-3.5 h-3.5 text-[#D97706]" />}
-            >
-              Add Item
-            </Button>
-          </div>
-
-          <div className="border border-white/[0.08] rounded-xl overflow-hidden">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-[#111722] text-slate-400 font-medium border-b border-white/[0.06] text-[13px]">
-                <tr>
-                  <th className="p-3.5 w-1/3">Product Description</th>
-                  <th className="p-3.5 w-28">SKU</th>
-                  <th className="p-3.5 w-24">Quantity</th>
-                  <th className="p-3.5 w-28">Unit Price ({currency})</th>
-                  <th className="p-3.5 w-28 text-right">Total</th>
-                  <th className="p-3.5 w-10"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/[0.06] bg-[#0D1118]">
-                {items.map((item, idx) => (
-                  <tr key={idx} className="hover:bg-[#151C28]/40 transition-colors">
-                    <td className="p-3.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                    <div className="sm:col-span-6">
+                      <label className="text-[11px] font-mono text-slate-400 block mb-1">Product Description</label>
                       <input
                         type="text"
                         value={item.productName}
                         onChange={(e) => handleUpdateItem(idx, "productName", e.target.value)}
-                        className="w-full bg-[#111722] border border-white/[0.08] rounded-lg px-3 py-1.5 text-sm text-[#F5F7FA] focus:outline-none focus:border-[#6366F1]"
+                        className="w-full bg-[#05070B] border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-[#F8FAFC] focus:outline-none focus:border-[#6366F1]"
                       />
-                    </td>
-                    <td className="p-3.5">
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="text-[11px] font-mono text-slate-400 block mb-1">SKU</label>
                       <input
                         type="text"
                         value={item.sku || ""}
                         onChange={(e) => handleUpdateItem(idx, "sku", e.target.value)}
-                        placeholder="SKU"
-                        className="w-full bg-[#111722] border border-white/[0.08] rounded-lg px-3 py-1.5 text-xs font-mono text-slate-400 focus:outline-none focus:border-[#6366F1]"
+                        className="w-full bg-[#05070B] border border-white/[0.08] rounded-lg px-2.5 py-2 text-xs font-mono text-slate-300 focus:outline-none focus:border-[#6366F1]"
                       />
-                    </td>
-                    <td className="p-3.5">
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="text-[11px] font-mono text-slate-400 block mb-1">Qty</label>
                       <input
                         type="number"
                         value={item.quantity}
                         onChange={(e) => handleUpdateItem(idx, "quantity", Number(e.target.value))}
-                        className="w-full bg-[#111722] border border-white/[0.08] rounded-lg px-3 py-1.5 text-sm font-mono text-[#F5F7FA] focus:outline-none focus:border-[#6366F1]"
+                        className="w-full bg-[#05070B] border border-white/[0.08] rounded-lg px-2.5 py-2 text-xs font-mono text-[#F8FAFC] focus:outline-none focus:border-[#6366F1]"
                       />
-                    </td>
-                    <td className="p-3.5">
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="text-[11px] font-mono text-slate-400 block mb-1">Rate ({currency})</label>
                       <input
                         type="number"
                         value={item.unitPrice}
                         onChange={(e) => handleUpdateItem(idx, "unitPrice", Number(e.target.value))}
-                        className="w-full bg-[#111722] border border-white/[0.08] rounded-lg px-3 py-1.5 text-sm font-mono text-[#F5F7FA] focus:outline-none focus:border-[#6366F1]"
+                        className="w-full bg-[#05070B] border border-white/[0.08] rounded-lg px-2.5 py-2 text-xs font-mono text-[#F8FAFC] focus:outline-none focus:border-[#6366F1]"
                       />
-                    </td>
-                    <td className="p-3.5 text-right font-mono font-semibold text-[#10B981] text-sm tabular-nums">
-                      ${(Number(item.quantity || 1) * Number(item.unitPrice || 0)).toLocaleString()}
-                    </td>
-                    <td className="p-3.5 text-right">
-                      {items.length > 1 && (
-                        <button
-                          onClick={() => handleRemoveItem(idx)}
-                          className="text-slate-500 hover:text-[#EF4444] p-1 transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Section 4: Commercial Notes */}
+          <div className="rounded-xl bg-[#0B0F14] border border-white/[0.08] p-6 space-y-3">
+            <h2 className="text-base font-semibold text-[#F8FAFC]">4. Payment & Commercial Terms</h2>
+            <textarea
+              rows={4}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="w-full bg-[#05070B] border border-white/[0.08] rounded-lg p-3.5 text-xs font-mono text-slate-300 focus:outline-none focus:border-[#6366F1] leading-relaxed"
+            />
           </div>
         </div>
 
-        {/* Commercial Terms & Financial Summary */}
-        <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8 bg-[#111722]/30">
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider font-mono block">Terms & Payment Conditions</label>
-            <textarea
-              rows={5}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="w-full bg-[#0D1118] border border-white/[0.08] rounded-xl p-3.5 text-sm font-mono text-slate-300 focus:outline-none focus:border-[#6366F1] leading-relaxed"
-            />
+        {/* ═════════════════════════════════════════════════════════════════════
+            RIGHT COLUMN (5 cols): LIVE PROFORMA INVOICE PREVIEW
+        ═════════════════════════════════════════════════════════════════════ */}
+        <div className="xl:col-span-5 xl:sticky xl:top-20 space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-mono uppercase text-slate-400 font-semibold tracking-wider">
+              Document Preview (Official Proforma)
+            </span>
+            <span className="text-xs font-mono text-[#10B981] flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]" /> Live Calculations
+            </span>
           </div>
 
-          <div className="space-y-3 p-5 rounded-xl bg-[#111722] border border-white/[0.06] flex flex-col justify-between">
-            <div className="space-y-2.5 text-sm">
-              <div className="flex justify-between text-slate-400">
-                <span>Items Subtotal:</span>
-                <span className="font-mono text-[#F5F7FA] font-semibold">${subtotal.toLocaleString()}</span>
+          {/* Proforma Sheet Component */}
+          <div className="rounded-xl bg-[#0C1017] border border-white/[0.1] shadow-2xl p-6 space-y-6 font-sans text-xs text-slate-300">
+            {/* Proforma Header */}
+            <div className="flex justify-between items-start pb-4 border-b border-white/[0.08]">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded bg-[#6366F1] text-white flex items-center justify-center font-bold">
+                    <Globe2 className="w-4 h-4" />
+                  </div>
+                  <span className="font-semibold text-sm text-white tracking-tight">EXPORT AI GUILD</span>
+                </div>
+                <p className="text-[11px] text-slate-400">Master Himalayan Artisan Guild</p>
+                <p className="text-[10px] text-slate-500 font-mono">Kathmandu Valley • VAT: 301984729</p>
               </div>
-              <div className="flex justify-between text-slate-400">
-                <span>Freight & Insurance ({tradeTerm}):</span>
-                <span className="font-mono text-[#F5F7FA]">${Number(shippingCost).toLocaleString()}</span>
-              </div>
-              <div className="pt-2.5 border-t border-white/[0.06] flex justify-between text-base font-semibold text-[#F5F7FA]">
-                <span>Grand Total ({currency}):</span>
-                <span className="font-mono text-lg text-[#10B981]">${grandTotal.toLocaleString()}</span>
+
+              <div className="text-right space-y-0.5">
+                <span className="px-2 py-0.5 rounded bg-[#6366F1]/15 text-[#818cf8] font-mono font-semibold uppercase text-[10px] border border-[#6366F1]/30">
+                  PROFORMA INVOICE
+                </span>
+                <div className="font-mono text-white text-xs font-semibold mt-1">#EXP-2026-00084</div>
+                <div className="text-[10px] font-mono text-slate-400">Date: {new Date().toLocaleDateString()}</div>
+                <div className="text-[10px] font-mono text-slate-400">Valid: {validDays} Days</div>
               </div>
             </div>
 
-            <div className="pt-3 border-t border-white/[0.06] flex items-center justify-between text-xs text-slate-400 font-mono">
-              <span>Issued via EXPORT AI Commercial Tool</span>
-              <span>Valid for {validDays} Days</span>
+            {/* Consignee & Shipping Corridor */}
+            <div className="grid grid-cols-2 gap-4 pb-4 border-b border-white/[0.08]">
+              <div>
+                <span className="text-[10px] font-mono uppercase text-slate-500 block mb-1">Buyer / Consignee:</span>
+                <div className="font-semibold text-white">{selectedLead?.companyName || "Wholesale Buyer Inc."}</div>
+                <div className="text-slate-400">{selectedLead?.contactPerson || "Procurement Team"}</div>
+                <div className="text-slate-400">{selectedLead?.country}</div>
+              </div>
+
+              <div className="text-right">
+                <span className="text-[10px] font-mono uppercase text-slate-500 block mb-1">Trade Terms & Transit:</span>
+                <div className="font-mono font-semibold text-[#10B981]">{tradeTerm} Terms</div>
+                <div className="text-slate-400">Port of Origin: TIA / Kolkata</div>
+                <div className="text-slate-400">Currency: {currency}</div>
+              </div>
+            </div>
+
+            {/* Line Items Table */}
+            <div className="space-y-2">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-white/[0.06] text-[10px] font-mono uppercase text-slate-500">
+                    <th className="py-1">Description</th>
+                    <th className="py-1 text-center">Qty</th>
+                    <th className="py-1 text-right">Rate</th>
+                    <th className="py-1 text-right">Amount</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/[0.04]">
+                  {items.map((it, idx) => (
+                    <tr key={idx} className="text-[11px]">
+                      <td className="py-2 text-slate-200 pr-2">
+                        <span className="font-medium block">{it.productName}</span>
+                        <span className="text-[10px] font-mono text-slate-500">SKU: {it.sku}</span>
+                      </td>
+                      <td className="py-2 text-center font-mono">{it.quantity}</td>
+                      <td className="py-2 text-right font-mono">${it.unitPrice.toFixed(2)}</td>
+                      <td className="py-2 text-right font-mono font-semibold text-white">
+                        ${(it.quantity * it.unitPrice).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Financial Totals */}
+            <div className="pt-3 border-t border-white/[0.08] space-y-1.5 font-mono text-xs">
+              <div className="flex justify-between text-slate-400">
+                <span>Subtotal ({currency}):</span>
+                <span className="text-white">${subtotal.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-slate-400">
+                <span>Freight & Insurance ({tradeTerm}):</span>
+                <span className="text-white">${Number(shippingCost).toLocaleString()}</span>
+              </div>
+              <div className="pt-2 border-t border-white/[0.08] flex justify-between text-sm font-semibold text-white">
+                <span className="text-[#10B981]">Total ({tradeTerm}):</span>
+                <span className="text-[#10B981] font-bold text-base">${grandTotal.toLocaleString()} {currency}</span>
+              </div>
+            </div>
+
+            {/* Document Footer */}
+            <div className="pt-3 border-t border-white/[0.06] text-[10px] text-slate-500 space-y-1 font-mono">
+              <p>Generated automatically via EXPORT AI Commercial Engine.</p>
+              <p>Includes acoustic harmonics inspection certificate.</p>
             </div>
           </div>
         </div>
