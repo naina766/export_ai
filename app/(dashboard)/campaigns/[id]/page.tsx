@@ -78,6 +78,10 @@ interface CampaignDetail {
       leadScore?: number;
     };
   }[];
+  personalizedEmails?: {
+    id: string;
+    isApproved: boolean;
+  }[];
 }
 
 const hourlyPerformance = [
@@ -166,33 +170,45 @@ export default function CampaignDetailPage() {
         </div>
       </div>
 
-      {/* ── 4 KPI CARDS ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard
-          label="Total Dispatched"
-          value="124"
-          trend={{ value: "100% Sent", isPositive: true }}
-          icon={<Send className="w-4 h-4 text-[#64748B]" />}
-        />
-        <MetricCard
-          label="Open Rate"
-          value="68.4%"
-          trend={{ value: "85 Opens", isPositive: true }}
-          icon={<Eye className="w-4 h-4 text-[#22D3EE]" />}
-        />
-        <MetricCard
-          label="Qualified Replies"
-          value="24.2%"
-          trend={{ value: "18 Buyers", isPositive: true }}
-          icon={<MessageSquare className="w-4 h-4 text-[#10B981]" />}
-        />
-        <MetricCard
-          label="Pipeline Generated"
-          value="$18.4K"
-          trend={{ value: "3 Deals Closed", isPositive: true }}
-          icon={<DollarSign className="w-4 h-4 text-[#6366F1]" />}
-        />
-      </div>
+      {/* ── 4 KPI CARDS (Real DB-backed Metrics) ── */}
+      {(() => {
+        const totalRecipients = campaign?.recipients?.length ?? campaign?.totalLeads ?? 0;
+        const totalSent = campaign?.recipients?.filter((r) => r.status === "SENT" || r.status === "DELIVERED").length ?? 0;
+        const approvedEmails = campaign?.personalizedEmails?.filter((p) => p.isApproved).length ?? 0;
+        const totalPersonalized = campaign?.personalizedEmails?.length ?? 0;
+
+        return (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <MetricCard
+              label="Total Recipients"
+              value={String(totalRecipients)}
+              trend={{ value: `${totalSent} Dispatched`, isPositive: totalSent > 0 }}
+              icon={<Send className="w-4 h-4 text-[#64748B]" />}
+            />
+            <MetricCard
+              label="Approved Drafts"
+              value={totalPersonalized > 0 ? `${approvedEmails} / ${totalPersonalized}` : "0"}
+              trend={{
+                value: approvedEmails === totalPersonalized && totalPersonalized > 0 ? "Ready to Dispatch" : "Human Approval Gate",
+                isPositive: approvedEmails > 0,
+              }}
+              icon={<Eye className="w-4 h-4 text-[#22D3EE]" />}
+            />
+            <MetricCard
+              label="Campaign Status"
+              value={campaign?.status || "DRAFT"}
+              trend={{ value: `${totalSent} Sent`, isPositive: true }}
+              icon={<MessageSquare className="w-4 h-4 text-[#10B981]" />}
+            />
+            <MetricCard
+              label="Target Product"
+              value={campaign?.product?.sku || "Wholesale Catalog"}
+              trend={{ value: campaign?.product?.name ? "FOB Tier" : "General", isPositive: true }}
+              icon={<DollarSign className="w-4 h-4 text-[#6366F1]" />}
+            />
+          </div>
+        );
+      })()}
 
       {/* ── PERFORMANCE CHART & AI CAMPAIGN INSIGHTS (8 cols / 4 cols) ── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -241,7 +257,7 @@ export default function CampaignDetailPage() {
               <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#22D3EE]" /> Opened</span>
               <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#10B981]" /> Replies</span>
             </div>
-            <span className="font-mono text-[#F8FAFC]">68.4% open / 24.2% reply</span>
+            <span className="font-mono text-[#F8FAFC]">Hourly Dispatch Telemetry</span>
           </div>
         </div>
 
@@ -364,8 +380,20 @@ export default function CampaignDetailPage() {
           <div className="p-4">
             <ActivityTimeline
               items={[
-                { id: "act-1", title: "Campaign Created & Dispatched", description: "Dispatched to 124 verified German buyer mailboxes via Gmail OAuth", type: "CAMPAIGN", createdAt: new Date().toISOString() },
-                { id: "act-2", title: "Batch 1 Opens Detected", description: "68.4% open rate reached within 4 hours of dispatch", type: "ANALYTICS", createdAt: new Date(Date.now() - 3600000).toISOString() },
+                {
+                  id: "act-1",
+                  title: `Campaign Status: ${campaign?.status || "DRAFT"}`,
+                  description: `${campaign?.recipients?.length ?? campaign?.totalLeads ?? 0} verified buyer recipients loaded for outreach.`,
+                  type: "CAMPAIGN",
+                  createdAt: campaign?.createdAt || new Date().toISOString(),
+                },
+                {
+                  id: "act-2",
+                  title: "AI Personalization Gate",
+                  description: `${campaign?.personalizedEmails?.filter((p) => p.isApproved).length ?? 0} of ${campaign?.personalizedEmails?.length ?? 0} draft emails approved for sending.`,
+                  type: "ANALYTICS",
+                  createdAt: new Date().toISOString(),
+                },
               ]}
             />
           </div>

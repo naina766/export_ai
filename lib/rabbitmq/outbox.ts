@@ -52,7 +52,8 @@ export async function publishOutboxEvent(eventId: string): Promise<boolean> {
   const event = await prisma.outboxEvent.findUnique({ where: { id: eventId } });
   if (!event || event.status === "PUBLISHED") return false;
 
-  const channel = await rabbitmq.getChannel();
+  const confirmChannel = await rabbitmq.getConfirmChannel();
+  const channel = confirmChannel || (await rabbitmq.getChannel());
   if (!channel) {
     console.warn(`[Outbox] Cannot publish event ${event.id}: RabbitMQ channel unavailable.`);
     return false;
@@ -75,48 +76,71 @@ export async function publishOutboxEvent(eventId: string): Promise<boolean> {
       })
     );
 
-    const published = channel.publish(EXCHANGES.JOBS, routingKey, messageBuffer, {
+    const messageOptions = {
       persistent: true,
       messageId: event.id,
       correlationId: event.aggregateId,
       timestamp: Date.now(),
       contentType: "application/json",
+    };
+
+    // Use explicit publisher confirmation if ConfirmChannel is active
+    if (confirmChannel) {
+      await new Promise<void>((resolve, reject) => {
+        confirmChannel.publish(
+          EXCHANGES.JOBS,
+          routingKey,
+          messageBuffer,
+          messageOptions,
+          (err) => {
+            if (err) reject(err);
+            else resolve();
+          }
+        );
+      });
+    } else {
+      const published = channel.publish(
+        EXCHANGES.JOBS,
+        routingKey,
+        messageBuffer,
+        messageOptions
+      );
+      if (!published) {
+        throw new Error("RabbitMQ buffer full, message rejected by broker.");
+      }
+    }
+
+    // Only mark PUBLISHED after broker confirmation has succeeded
+    await prisma.outboxEvent.update({
+      where: { id: event.id },
+      data: {
+        status: "PUBLISHED",
+        publishedAt: new Date(),
+        attempts: { increment: 1 },
+        error: null,
+      },
     });
 
-    if (published) {
-      await prisma.outboxEvent.update({
-        where: { id: event.id },
-        data: {
-          status: "PUBLISHED",
-          publishedAt: new Date(),
-          attempts: { increment: 1 },
-          error: null,
-        },
-      });
+    // Update or create JobLog for UI tracking
+    await prisma.jobLog.upsert({
+      where: { id: event.id },
+      update: {
+        status: "QUEUED",
+        attempts: { increment: 1 },
+      },
+      create: {
+        id: event.id,
+        jobId: event.aggregateId,
+        correlationId: event.aggregateId,
+        queue: routingKey,
+        type: event.eventType,
+        status: "QUEUED",
+        payload: event.payload ?? undefined,
+        attempts: 1,
+      },
+    });
 
-      // Update or create JobLog for UI tracking
-      await prisma.jobLog.upsert({
-        where: { id: event.id },
-        update: {
-          status: "QUEUED",
-          attempts: { increment: 1 },
-        },
-        create: {
-          id: event.id,
-          jobId: event.aggregateId,
-          correlationId: event.aggregateId,
-          queue: routingKey,
-          type: event.eventType,
-          status: "QUEUED",
-          payload: event.payload ?? undefined,
-          attempts: 1,
-        },
-      });
-
-      return true;
-    } else {
-      throw new Error("RabbitMQ buffer full, message rejected by broker.");
-    }
+    return true;
   } catch (error) {
     const errorMsg = (error as Error).message;
     console.error(`[Outbox] Error publishing event ${event.id}:`, errorMsg);

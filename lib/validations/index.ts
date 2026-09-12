@@ -55,8 +55,8 @@ export const UpdateBuyerLeadSchema = CreateBuyerLeadSchema.partial().extend({
 // ─── Product (Singing Bowls Catalog) ─────────────────────────────────────────
 
 export const CreateProductSchema = z.object({
-  name: z.string().min(2, "Product name is required"),
-  sku: z.string().min(2, "SKU is required"),
+  name: z.string().min(2, "Product name is required").max(200, "Product name too long"),
+  sku: z.string().min(2, "SKU is required").max(50, "SKU too long"),
   category: z
     .enum([
       "TIBETAN_HAND_HAMMERED",
@@ -67,22 +67,22 @@ export const CreateProductSchema = z.object({
       "ACCESSORIES",
     ])
     .default("TIBETAN_HAND_HAMMERED"),
-  description: z.string().optional(),
-  shortDescription: z.string().optional(),
-  material: z.string().default("7-Metal Bronze Alloy"),
-  frequency: z.string().optional(),
-  diameter: z.string().optional(),
-  weight: z.string().optional(),
-  priceMin: z.number().positive("Minimum price must be positive"),
-  priceMax: z.number().positive().optional(),
-  currency: z.string().default("USD"),
-  moq: z.number().int().positive().default(10),
-  stockQuantity: z.number().int().nonnegative().default(100),
+  description: z.string().max(5000, "Description too long").optional(),
+  shortDescription: z.string().max(500, "Short description too long").optional(),
+  material: z.string().max(100, "Material too long").default("7-Metal Bronze Alloy"),
+  frequency: z.string().max(100, "Frequency too long").optional(),
+  diameter: z.string().max(50, "Diameter too long").optional(),
+  weight: z.string().max(50, "Weight too long").optional(),
+  priceMin: z.number().positive("Minimum price must be positive").max(10_000_000, "Price too large"),
+  priceMax: z.number().positive().max(10_000_000, "Price too large").optional(),
+  currency: z.string().max(10).default("USD"),
+  moq: z.number().int().positive().max(1_000_000).default(10),
+  stockQuantity: z.number().int().nonnegative().max(10_000_000).default(100),
   availableForExport: z.boolean().default(true),
-  exportMarkets: z.array(z.string()).optional(),
+  exportMarkets: z.array(z.string().max(50)).max(50).optional(),
   specifications: z.record(z.string(), z.unknown()).optional(),
   featured: z.boolean().default(false),
-  thumbnailUrl: z.string().optional(),
+  thumbnailUrl: z.string().max(500).optional(),
 });
 
 export const UpdateProductSchema = CreateProductSchema.partial();
@@ -189,9 +189,9 @@ export const UpdateOpportunityStageSchema = z.object({
 
 export const QuotationItemSchema = z.object({
   productId: z.string().optional(),
-  productName: z.string().min(1, "Product name is required"),
-  quantity: z.number().int().positive("Quantity must be >= 1"),
-  unitPrice: z.number().positive("Unit price must be positive"),
+  productName: z.string().min(1, "Product name is required").max(200, "Product name too long"),
+  quantity: z.number().int().positive("Quantity must be >= 1").max(1_000_000, "Quantity too large"),
+  unitPrice: z.number().positive("Unit price must be positive").max(10_000_000, "Price too large"),
 });
 
 export const CreateQuotationSchema = z.object({
@@ -212,10 +212,10 @@ export const UpdateQuotationSchema = CreateQuotationSchema.partial().extend({
 // ─── Buyer Discovery ─────────────────────────────────────────────────────────
 
 export const StartDiscoverySchema = z.object({
-  productKeyword: z.string().default("Singing Bowls"),
-  targetCountries: z.array(z.string()).min(1, "Select at least one target country"),
-  buyerType: z.string().default("BUSINESS"),
-  sources: z.array(z.string()).optional(),
+  productKeyword: z.string().min(1, "Keyword is required").max(200, "Keyword too long").default("Singing Bowls"),
+  targetCountries: z.array(z.string().max(100)).min(1, "Select at least one target country").max(50, "Too many target countries"),
+  buyerType: z.string().max(50).default("BUSINESS"),
+  sources: z.array(z.string().max(100)).max(20).optional(),
   maxResults: z.number().int().min(5).max(200).default(50),
 });
 

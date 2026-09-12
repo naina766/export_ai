@@ -11,6 +11,12 @@ export async function GET(req: NextRequest, { params }: Params) {
     if (!requester) return errorResponse("Unauthorized", 401);
 
     const { id } = await params;
+
+    // Users can only view their own profile unless ADMIN or MANAGER
+    if (requester.userId !== id && !["ADMIN", "MANAGER"].includes(requester.role)) {
+      return errorResponse("Forbidden: You do not have permission to view this user profile", 403);
+    }
+
     const user = await prisma.user.findUnique({
       where: { id },
       select: {

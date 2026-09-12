@@ -24,7 +24,24 @@ export interface OAuthStatePayload {
   issuedAt: number;
 }
 
-const OAUTH_STATE_MAX_AGE_MS = 15 * 60 * 1000; // 15 minutes
+export const OAUTH_STATE_MAX_AGE_MS = 15 * 60 * 1000; // 15 minutes
+const CLOCK_SKEW_TOLERANCE_MS = 60 * 1000; // 1 minute
+
+// In-memory set of used nonces to enforce single-use and prevent replay attacks
+const usedNonces = new Map<string, number>();
+
+export function _clearOAuthNoncesForTesting(): void {
+  usedNonces.clear();
+}
+
+function getOAuthStateSecret(): string {
+  const secret = process.env.OAUTH_STATE_SECRET || process.env.JWT_SECRET;
+  if (secret) return secret;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("FATAL: OAUTH_STATE_SECRET or JWT_SECRET is required in production.");
+  }
+  return "dev-oauth-state-secret-32-chars-long";
+}
 
 export function generateOAuthState(userId: string): string {
   const payload: OAuthStatePayload = {
@@ -33,32 +50,56 @@ export function generateOAuthState(userId: string): string {
     issuedAt: Date.now(),
   };
 
-  const secret = process.env.JWT_SECRET || "dev-oauth-state-secret-32-chars-long";
+  const secret = getOAuthStateSecret();
   const data = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const hmac = crypto.createHmac("sha256", secret).update(data).digest("base64url");
   return `${data}.${hmac}`;
 }
 
 export function verifyOAuthState(state: string | null | undefined): { userId: string } | null {
-  if (!state || !state.includes(".")) return null;
+  if (!state || typeof state !== "string" || !state.includes(".")) return null;
 
   try {
     const [data, hmac] = state.split(".");
     if (!data || !hmac) return null;
 
-    const secret = process.env.JWT_SECRET || "dev-oauth-state-secret-32-chars-long";
+    const secret = getOAuthStateSecret();
     const expectedHmac = crypto.createHmac("sha256", secret).update(data).digest("base64url");
 
-    if (!crypto.timingSafeEqual(Buffer.from(hmac), Buffer.from(expectedHmac))) {
+    // Constant-time HMAC comparison
+    const hmacBuf = Buffer.from(hmac.padEnd(expectedHmac.length, "\0"));
+    const expBuf = Buffer.from(expectedHmac.padEnd(hmac.length, "\0"));
+    if (hmacBuf.length !== expBuf.length || !crypto.timingSafeEqual(hmacBuf, expBuf)) {
       return null;
     }
 
     const payload = JSON.parse(Buffer.from(data, "base64url").toString("utf8")) as OAuthStatePayload;
-    if (!payload.userId || !payload.issuedAt) return null;
+    if (!payload.userId || !payload.nonce || !payload.issuedAt) return null;
 
-    if (Date.now() - payload.issuedAt > OAUTH_STATE_MAX_AGE_MS) {
-      return null; // Expired
+    const now = Date.now();
+
+    // Reject state issued in future beyond clock-skew tolerance
+    if (payload.issuedAt > now + CLOCK_SKEW_TOLERANCE_MS) {
+      return null;
     }
+
+    // Reject expired state
+    if (now - payload.issuedAt > OAUTH_STATE_MAX_AGE_MS) {
+      return null;
+    }
+
+    // Clean up expired nonces
+    for (const [nonce, expiry] of usedNonces.entries()) {
+      if (expiry < now) usedNonces.delete(nonce);
+    }
+
+    // Enforce single-use: reject replayed state
+    if (usedNonces.has(payload.nonce)) {
+      return null;
+    }
+
+    // Mark nonce as used with expiry TTL
+    usedNonces.set(payload.nonce, now + OAUTH_STATE_MAX_AGE_MS);
 
     return { userId: payload.userId };
   } catch {

@@ -18,6 +18,16 @@ export async function POST(req: NextRequest) {
 
     if (!lead) return errorResponse("Buyer Lead not found", 404);
 
+    const isPrivileged = ["ADMIN", "MANAGER"].includes(user.role);
+    const isOwner =
+      lead.assignedToId === user.userId ||
+      lead.createdById === user.userId ||
+      (!lead.assignedToId && !lead.createdById);
+
+    if (!isPrivileged && !isOwner) {
+      return errorResponse("Forbidden: You do not have permission to score this buyer lead", 403);
+    }
+
     const qualification = await qualifyBuyerLead({
       companyName: lead.companyName,
       contactPerson: lead.contactPerson,

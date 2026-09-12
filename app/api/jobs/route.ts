@@ -8,6 +8,9 @@ export async function GET(req: NextRequest) {
   try {
     const user = await getAuthUser(req);
     if (!user) return errorResponse("Unauthorized", 401);
+    if (!["ADMIN", "MANAGER"].includes(user.role)) {
+      return errorResponse("Forbidden: Insufficient permissions to view system job logs", 403);
+    }
 
     const { page, limit, skip, search, sortBy, sortOrder } =
       getPaginationParams(req.nextUrl.searchParams);

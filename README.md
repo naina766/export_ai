@@ -1,9 +1,9 @@
 # 🔮 EXPORT AI — Enterprise B2B Export Sales Operating System
-### Autonomous Buyer Discovery, AI Personalization, Transactional Outbox & Wholesale Export Workflows
+### AI-Assisted Buyer Qualification, Gmail Outreach, Transactional Outbox & Wholesale Export Workflows
 
 **EXPORT AI** is a production-grade B2B Sales Operating System tailored for international wholesale exporters of artisanal Himalayan sound wellness instruments (Tibetan hand-hammered singing bowls, 7-chakra tuned sets, gongs, and meditation accessories).
 
-The system coordinates multi-source wholesale buyer discovery, Google Gemini 1.5 Flash commercial qualification, 6-stage automated Gmail outreach campaigns, proforma quotation generation (FOB/CIF/EXW), and a distributed RabbitMQ background worker cluster operating with the **Transactional Outbox pattern**.
+The system coordinates provider-based wholesale buyer discovery (with simulated providers for development/testing), Google Gemini 1.5 Flash commercial qualification, automated Gmail outreach campaigns with human approval gating, proforma quotation calculation (FOB/CIF/EXW), and a distributed RabbitMQ background worker cluster operating with the **Transactional Outbox pattern**.
 
 ---
 
@@ -13,7 +13,7 @@ The system coordinates multi-source wholesale buyer discovery, Google Gemini 1.5
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       Next.js 16 App Router Frontend                        │
 │   • Command Center Dashboard (Live DB)   • 8-Stage Sales Pipeline Kanban    │
-│   • Buyer Discovery Cockpit              • Proforma Quotation PDF Generator │
+│   • Buyer Discovery Cockpit              • Proforma Quotation Summary       │
 │   • Dense Buyer Leads CRM Directory      • 6-Step AI Outreach Campaign      │
 │   • Tabbed CRM Detail Experience         • Responsive Mobile Drawer Shell   │
 └──────────────────────────────────────┬──────────────────────────────────────┘
@@ -24,6 +24,7 @@ The system coordinates multi-source wholesale buyer discovery, Google Gemini 1.5
 │   • Route Authentication Guard           • Sliding-Window Rate Limiting     │
 │   • Strict Zod Schema Validation         • Security Headers (HSTS, CSP)     │
 │   • Role-Based Access Control (RBAC)     • Gmail OAuth2 Integration         │
+│   • Single-Use Signed OAuth State        • SHA-256 Hashed Refresh Tokens    │
 └──────────────────────────────────────┬──────────────────────────────────────┘
                                        │
                                        ▼
@@ -31,6 +32,7 @@ The system coordinates multi-source wholesale buyer discovery, Google Gemini 1.5
 │                        PostgreSQL 16 via Prisma ORM                         │
 │   • ACID Transactions ($transaction)     • Query-Backed B-tree Indexes      │
 │   • Foreign Key Referential Integrity    • Cascade Deletion Rules           │
+│   • Safe First-Admin Bootstrap Locking   • Default False AI Email Approval  │
 └──────────────────┬──────────────────────────────────────────────────────────┘
                    │ Commits Atomically Inside Local Transaction
                    ▼
@@ -39,22 +41,23 @@ The system coordinates multi-source wholesale buyer discovery, Google Gemini 1.5
 │   • status: PENDING / PUBLISHED      │
 │   • compound index: [status, created]│
 └──────────────────┬───────────────────┘
-                   │ Polling & Flush (`flushPendingOutbox`)
+                   │ Polling & Publisher Confirms (`publishOutboxEvent`)
                    ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         RabbitMQ Message Broker                             │
 │   • Main Topic Exchange: `export.jobs.exchange`                             │
 │   • Dead Letter Exchange: `export.dlx` (Queue: `dead-letter.queue`)         │
+│   • Publisher Confirm Channels: Explicit broker ACKs before status updates  │
 └──────────────────┬──────────────────────────────────────────────────────────┘
                    │ Manual ACK / Exponential Backoff / DLQ Nack
                    ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                      Distributed Background Workers                         │
-│   • discovery.queue: Simulates international wholesale directory crawling   │
-│   • validation.queue: RFC-5322 syntax, domain MX & disposable email checks  │
+│   • discovery.queue: Provider-based buyer discovery pipeline (simulated)   │
+│   • validation.queue: RFC-5322 syntax, disposable blocklists & role checks │
 │   • ai.queue: Gemini 1.5 Flash evaluation with heuristic fallback engine    │
-│   • email.queue: Paced Gmail API outreach message dispatch                 │
-│   • report.queue: Proforma quotation & export catalog PDF generation        │
+│   • email.queue: Paced Gmail API outreach (enforcing isApproved gate)       │
+│   • report.queue: Performance metrics aggregation & quotation summary       │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -63,12 +66,15 @@ The system coordinates multi-source wholesale buyer discovery, Google Gemini 1.5
 ## 🚀 Key Modules & Capabilities
 
 * **Lead Command Center & Analytics**: Live database reporting (`/api/analytics/overview`, `/api/analytics/funnel`) displaying real buyer counts, conversion funnel stages, and country distributions with skeleton loading and error states.
-* **Transactional Outbox Resilience**: Eliminates dual-write anomalies across PostgreSQL mutations and RabbitMQ publishing. Events and leads commit atomically; workers tolerate broker disconnects with standby reconnect loops.
+* **Transactional Outbox & Broker Confirms**: Eliminates dual-write anomalies across PostgreSQL mutations and RabbitMQ publishing. Events and leads commit atomically; events are only marked `PUBLISHED` after RabbitMQ broker confirmation (`ConfirmChannel`).
 * **Resilient RabbitMQ Consumers**: Malformed JSON payloads are immediately routed to Dead-Letter Queues without infinite retry loops; transient failures use exponential backoff (1s, 2s, 4s).
 * **Enterprise Security & RBAC**:
-  * Public registration privilege escalation eliminated (users assigned `AGENT` unless first-user bootstrap).
+  * Public registration privilege escalation eliminated (users assigned `AGENT` unless first-user bootstrap with table-level serialization).
+  * Cryptographic SHA-256 hash storage of refresh tokens (raw tokens never stored or logged in PostgreSQL).
+  * Single-use HMAC-signed OAuth state with replay protection, clock-skew checks, and TTL expiry.
+  * Fail-closed unsubscribe token verification in production with constant-time HMAC comparison.
   * Strict JWT secret length validation (`>= 32` characters in production).
-  * Protected lead deletion enforcing `ADMIN`, `MANAGER`, or owner authorization with transactional child cleanup.
+  * Protected lead and campaign deletion enforcing `ADMIN`, `MANAGER`, or owner authorization with transactional child cleanup.
   * In-memory sliding-window rate limiting on authentication and discovery endpoints.
   * 10MB file upload size cap with MIME-type whitelisting.
   * Sanitized unsubscribe endpoints preventing stored or reflected XSS.
@@ -76,6 +82,7 @@ The system coordinates multi-source wholesale buyer discovery, Google Gemini 1.5
   * Google Gemini 1.5 Flash prompt structure protected by `<prospect_data>` XML containers.
   * Strict Zod output schema validation.
   * Deterministic rule-based scoring engine kicks in during API outages, rate limits, or missing keys.
+  * **Human Approval Gate**: AI drafts default to `isApproved: false` in the database schema; email dispatch strictly refuses unapproved drafts.
 * **Complete Responsive SaaS Layout**: 5-group organized sidebar navigation, mobile drawer with backdrop, and full table pagination with Next.js client routing.
 
 ---

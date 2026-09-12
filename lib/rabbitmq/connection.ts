@@ -1,4 +1,4 @@
-import amqp, { Channel } from "amqplib";
+import amqp, { Channel, ConfirmChannel } from "amqplib";
 
 const RABBITMQ_URL = process.env.RABBITMQ_URL || "amqp://admin:admin123@localhost:5672";
 
@@ -7,6 +7,7 @@ class RabbitMQManager {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private connection: any = null;
   private channel: Channel | null = null;
+  private confirmChannel: ConfirmChannel | null = null;
   private isConnecting = false;
 
   private constructor() {}
@@ -80,10 +81,37 @@ class RabbitMQManager {
     }
   }
 
+  public async getConfirmChannel(): Promise<ConfirmChannel | null> {
+    if (this.confirmChannel) return this.confirmChannel;
+    const conn = await this.getConnection();
+    if (!conn) return null;
+
+    try {
+      const ch: ConfirmChannel = await conn.createConfirmChannel();
+      if (!ch) return null;
+
+      ch.on("error", (err: Error) => {
+        console.error("[RabbitMQ] Confirm channel error:", err.message);
+        this.confirmChannel = null;
+      });
+      ch.on("close", () => {
+        console.warn("[RabbitMQ] Confirm channel closed.");
+        this.confirmChannel = null;
+      });
+
+      this.confirmChannel = ch;
+      return this.confirmChannel;
+    } catch (err) {
+      console.error("[RabbitMQ] Failed to create confirm channel:", (err as Error).message);
+      return null;
+    }
+  }
+
   public async close(): Promise<void> {
     try {
-      if (this.channel) await this.channel.close();
-      if (this.connection) await this.connection.close();
+      if (this.confirmChannel) await this.confirmChannel.close().catch(() => {});
+      if (this.channel) await this.channel.close().catch(() => {});
+      if (this.connection) await this.connection.close().catch(() => {});
     } catch (err) {
       console.error("[RabbitMQ] Error while closing connection:", (err as Error).message);
     } finally {
@@ -94,6 +122,7 @@ class RabbitMQManager {
   private reset() {
     this.connection = null;
     this.channel = null;
+    this.confirmChannel = null;
     this.isConnecting = false;
   }
 }

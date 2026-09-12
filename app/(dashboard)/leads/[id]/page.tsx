@@ -50,7 +50,8 @@ interface LeadActivity {
 
 interface LeadFollowUp {
   id: string;
-  type: string;
+  title?: string;
+  type?: string;
   notes: string | null;
   scheduledAt: string;
   isCompleted: boolean;
@@ -625,11 +626,89 @@ export default function LeadDetailPage() {
 
         {/* Tab 5: Follow-ups */}
         {activeTab === "followups" && (
-          <div className="rounded-xl bg-[#0F141D] border border-white/[0.08] p-6 space-y-4">
-            <h3 className="text-base font-semibold text-[#F8FAFC]">Scheduled Follow-ups & Reminders</h3>
+          <div className="rounded-xl bg-[#0F141D] border border-white/[0.08] p-6 space-y-6">
+            <div className="flex items-center justify-between pb-4 border-b border-white/[0.08]">
+              <div>
+                <h3 className="text-base font-semibold text-[#F8FAFC]">Scheduled Follow-ups & Reminders</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Persistent database-backed action items and buyer checkpoints</p>
+              </div>
+            </div>
+
+            {/* Quick Add Follow-up Form */}
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const form = e.currentTarget;
+                const title = (form.elements.namedItem("fuTitle") as HTMLInputElement).value;
+                const date = (form.elements.namedItem("fuDate") as HTMLInputElement).value;
+                const notes = (form.elements.namedItem("fuNotes") as HTMLInputElement).value;
+                if (!title || !date) {
+                  toast.error("Title and scheduled date are required");
+                  return;
+                }
+                try {
+                  const res = await fetch("/api/follow-ups", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      title,
+                      scheduledAt: new Date(date).toISOString(),
+                      notes: notes || undefined,
+                      leadId,
+                    }),
+                  });
+                  const json = await res.json();
+                  if (json.success) {
+                    toast.success("Follow-up scheduled");
+                    form.reset();
+                    fetchLead();
+                  } else {
+                    toast.error(json.message || "Failed to schedule follow-up");
+                  }
+                } catch {
+                  toast.error("Network error scheduling follow-up");
+                }
+              }}
+              className="p-4 rounded-lg bg-[#0A0D13] border border-white/[0.06] grid grid-cols-1 sm:grid-cols-4 gap-3 items-end"
+            >
+              <div className="sm:col-span-2">
+                <label className="text-xs font-mono text-slate-400 block mb-1">Follow-up Action</label>
+                <input
+                  name="fuTitle"
+                  type="text"
+                  placeholder="e.g., Send FOB price quotation review"
+                  className="w-full bg-[#111827] border border-white/[0.1] rounded px-3 py-1.5 text-xs text-[#F8FAFC] placeholder-slate-500 focus:outline-none focus:border-[#6366F1]"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-xs font-mono text-slate-400 block mb-1">Target Date</label>
+                <input
+                  name="fuDate"
+                  type="date"
+                  defaultValue={new Date(Date.now() + 86400000 * 3).toISOString().split("T")[0]}
+                  className="w-full bg-[#111827] border border-white/[0.1] rounded px-3 py-1.5 text-xs text-[#F8FAFC] focus:outline-none focus:border-[#6366F1]"
+                  required
+                />
+              </div>
+              <div>
+                <Button type="submit" variant="primary" size="sm" className="w-full">
+                  Add Follow-up
+                </Button>
+              </div>
+              <div className="sm:col-span-4">
+                <input
+                  name="fuNotes"
+                  type="text"
+                  placeholder="Optional context / buyer requirements note"
+                  className="w-full bg-[#111827] border border-white/[0.1] rounded px-3 py-1.5 text-xs text-[#F8FAFC] placeholder-slate-500 focus:outline-none focus:border-[#6366F1]"
+                />
+              </div>
+            </form>
+
             {!lead.followUps || lead.followUps.length === 0 ? (
               <div className="p-8 text-center text-slate-400 text-sm">
-                No follow-up action items scheduled for this lead.
+                No follow-up action items scheduled for this lead. Use the form above to add one.
               </div>
             ) : (
               <div className="divide-y divide-white/[0.06]">
@@ -637,7 +716,9 @@ export default function LeadDetailPage() {
                   <div key={fu.id} className="py-3 flex items-center justify-between gap-4">
                     <div className="space-y-0.5">
                       <div className="flex items-center gap-2 text-sm font-medium text-[#F8FAFC]">
-                        <span>{fu.type}</span>
+                        <span className={fu.isCompleted ? "line-through text-slate-500" : ""}>
+                          {fu.title || fu.type}
+                        </span>
                         {fu.isCompleted ? (
                           <span className="text-xs font-mono text-[#10B981] bg-[#10B981]/10 px-2 py-0.5 rounded">Completed</span>
                         ) : (
@@ -646,9 +727,33 @@ export default function LeadDetailPage() {
                       </div>
                       {fu.notes && <p className="text-xs text-slate-400">{fu.notes}</p>}
                     </div>
-                    <span className="text-xs font-mono text-slate-400 shrink-0">
-                      {new Date(fu.scheduledAt).toLocaleDateString()}
-                    </span>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="text-xs font-mono text-slate-400">
+                        {new Date(fu.scheduledAt).toLocaleDateString()}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            const res = await fetch("/api/follow-ups", {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ id: fu.id, isCompleted: !fu.isCompleted }),
+                            });
+                            const json = await res.json();
+                            if (json.success) {
+                              toast.success(fu.isCompleted ? "Marked pending" : "Completed");
+                              fetchLead();
+                            }
+                          } catch {
+                            toast.error("Failed to update status");
+                          }
+                        }}
+                      >
+                        {fu.isCompleted ? "Reopen" : "Done"}
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>

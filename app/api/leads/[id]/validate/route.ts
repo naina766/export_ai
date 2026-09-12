@@ -17,6 +17,16 @@ export async function POST(
     const lead = await prisma.buyerLead.findUnique({ where: { id: params.id } });
     if (!lead) return errorResponse("Buyer lead not found", 404);
 
+    const isPrivileged = ["ADMIN", "MANAGER"].includes(user.role);
+    const isOwner =
+      lead.assignedToId === user.userId ||
+      lead.createdById === user.userId ||
+      (!lead.assignedToId && !lead.createdById);
+
+    if (!isPrivileged && !isOwner) {
+      return errorResponse("Forbidden: You do not have permission to validate this buyer lead", 403);
+    }
+
     const result = validateEmailAddress(lead.email);
 
     const updated = await prisma.buyerLead.update({

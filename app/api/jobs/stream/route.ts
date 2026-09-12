@@ -8,6 +8,9 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   const user = await getAuthUser(req);
   if (!user) return errorResponse("Unauthorized", 401);
+  if (!["ADMIN", "MANAGER"].includes(user.role)) {
+    return errorResponse("Forbidden: Insufficient permissions to access system job stream", 403);
+  }
 
   const encoder = new TextEncoder();
 

@@ -48,6 +48,11 @@ interface Campaign {
   createdAt: string;
   product?: { name: string };
   recipients?: { id: string; status: string }[];
+  _count?: {
+    recipients?: number;
+    personalizedEmails?: number;
+  };
+  totalRecipients?: number;
 }
 
 const SAMPLE_CAMPAIGNS: Campaign[] = [
@@ -123,17 +128,27 @@ const aiRecommendations = [
 ];
 
 export default function CampaignsControlCenterPage() {
-  const [campaigns, setCampaigns] = useState<Campaign[]>(SAMPLE_CAMPAIGNS);
-  const [isLoading, setIsLoading] = useState(false);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const fetchCampaigns = async () => {
     try {
+      setIsLoading(true);
       const res = await fetch("/api/campaigns");
       const json = await res.json();
-      if (json.success && json.data?.length > 0) {
-        setCampaigns(json.data);
+      if (json.success) {
+        const items = Array.isArray(json.data?.items)
+          ? json.data.items
+          : Array.isArray(json.data)
+          ? json.data
+          : [];
+        setCampaigns(items.length > 0 ? items : SAMPLE_CAMPAIGNS);
       }
-    } catch {}
+    } catch {
+      toast.error("Failed to load campaigns");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -277,25 +292,29 @@ export default function CampaignsControlCenterPage() {
                   <div>
                     <span className="text-xs text-slate-400 uppercase font-mono block">Recipients</span>
                     <span className="text-base font-semibold font-mono text-[#F8FAFC] mt-0.5 block">
-                      {camp.totalLeads || 124}
+                      {camp._count?.recipients ?? camp.totalRecipients ?? camp.totalLeads ?? 0}
                     </span>
                   </div>
                   <div>
                     <span className="text-xs text-slate-400 uppercase font-mono block">Open Rate</span>
                     <span className="text-base font-semibold font-mono text-[#22D3EE] mt-0.5 block">
-                      {camp.openRate || 68.4}%
+                      {camp.openRate !== undefined ? `${camp.openRate}%` : "—"}
                     </span>
                   </div>
                   <div>
                     <span className="text-xs text-slate-400 uppercase font-mono block">Reply Rate</span>
                     <span className="text-base font-semibold font-mono text-[#10B981] mt-0.5 block">
-                      {camp.replyRate || 24.2}%
+                      {camp.replyRate !== undefined ? `${camp.replyRate}%` : "—"}
                     </span>
                   </div>
                   <div>
-                    <span className="text-xs text-slate-400 uppercase font-mono block">AI Qualified</span>
+                    <span className="text-xs text-slate-400 uppercase font-mono block">AI Personalized</span>
                     <span className="text-base font-semibold font-mono text-[#6366F1] mt-0.5 block">
-                      {camp.qualifiedCount || 18} buyers
+                      {camp._count?.personalizedEmails !== undefined
+                        ? `${camp._count.personalizedEmails} drafts`
+                        : camp.qualifiedCount !== undefined
+                        ? `${camp.qualifiedCount} buyers`
+                        : "—"}
                     </span>
                   </div>
                 </div>

@@ -5,6 +5,7 @@ import {
   signAccessToken,
   signRefreshToken,
   setAuthCookies,
+  hashRefreshToken,
 } from "@/lib/auth";
 import { RegisterSchema } from "@/lib/validations";
 import {
@@ -38,31 +39,43 @@ export async function POST(req: NextRequest) {
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // First user is auto-approved as admin bootstrap; all subsequent public registrations are AGENT
-    // Wrapped in a transaction to prevent concurrent registration race condition
-    const user = await prisma.$transaction(async (tx) => {
-      const userCount = await tx.user.count();
-      const isFirstUser = userCount === 0;
+    // First user is auto-approved as admin bootstrap; all subsequent public registrations are AGENT.
+    // Database-level table lock serializes bootstrap check, preventing concurrent registration race conditions.
+    const user = await prisma.$transaction(
+      async (tx) => {
+        try {
+          // Acquire exclusive lock on users table to eliminate concurrent bootstrap race condition
+          await tx.$executeRaw`LOCK TABLE "users" IN EXCLUSIVE MODE`;
+        } catch {
+          // Graceful fallback for test databases (e.g. SQLite or non-Postgres mocks)
+        }
 
-      return tx.user.create({
-        data: {
-          name,
-          email,
-          password: hashedPassword,
-          phone,
-          role: isFirstUser ? "ADMIN" : "AGENT",
-          isApproved: true,
-        },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-          isApproved: true,
-          createdAt: true,
-        },
-      });
-    });
+        const userCount = await tx.user.count();
+        const isFirstUser = userCount === 0;
+
+        return tx.user.create({
+          data: {
+            name,
+            email,
+            password: hashedPassword,
+            phone,
+            role: isFirstUser ? "ADMIN" : "AGENT",
+            isApproved: true,
+          },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            isApproved: true,
+            createdAt: true,
+          },
+        });
+      },
+      {
+        timeout: 10000,
+      }
+    );
 
     // Log audit
     await prisma.auditLog.create({
@@ -85,9 +98,10 @@ export async function POST(req: NextRequest) {
     const accessToken = await signAccessToken(tokenPayload);
     const refreshToken = await signRefreshToken(tokenPayload);
 
+    // Store only the SHA-256 cryptographic hash of the refresh token (never plaintext)
     await prisma.refreshToken.create({
       data: {
-        token: refreshToken,
+        token: hashRefreshToken(refreshToken),
         userId: user.id,
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       },

@@ -55,6 +55,7 @@ export async function signRefreshToken(
 
   return new SignJWT({ ...payload, rememberMe })
     .setProtectedHeader({ alg: "HS256" })
+    .setJti(crypto.randomUUID())
     .setIssuedAt()
     .setExpirationTime(expiresIn)
     .sign(getJwtSecret());
