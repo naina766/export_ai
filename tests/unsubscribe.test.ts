@@ -4,6 +4,7 @@ import crypto from "crypto";
 import {
   generateUnsubscribeToken,
   verifyUnsubscribeToken,
+  UnsubscribeTokenPayload,
 } from "../lib/security/tokens";
 
 test("Unsubscribe Token: Generate & Verify valid token", () => {
