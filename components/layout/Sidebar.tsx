@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -30,17 +30,17 @@ const navGroups = [
     label: "WORKSPACE",
     items: [
       { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+      { name: "Buyer Discovery", href: "/discovery", icon: Compass },
       { name: "Buyer Leads", href: "/leads", icon: Users },
-      { name: "Opportunities", href: "/opportunities", icon: Kanban },
-      { name: "Quotations", href: "/quotations", icon: Receipt },
     ],
   },
   {
-    label: "OUTREACH",
+    label: "SALES",
     items: [
       { name: "Campaigns", href: "/campaigns", icon: Send },
+      { name: "Sales Pipeline", href: "/opportunities", icon: Kanban },
+      { name: "Quotations", href: "/quotations", icon: Receipt },
       { name: "Follow-ups", href: "/follow-ups", icon: Clock },
-      { name: "Templates", href: "/templates", icon: FileText },
     ],
   },
   {
@@ -48,21 +48,26 @@ const navGroups = [
     items: [
       { name: "AI Insights", href: "/ai-insights", icon: Sparkles },
       { name: "Analytics", href: "/analytics", icon: BarChart3 },
-      { name: "Buyer Discovery", href: "/discovery", icon: Compass },
     ],
   },
   {
-    label: "CATALOG & ASSETS",
+    label: "CATALOG",
     items: [
       { name: "Products", href: "/products", icon: Package },
       { name: "Documents", href: "/documents", icon: FolderLock },
-      { name: "Reports", href: "/reports", icon: FileSpreadsheet },
+      { name: "Templates", href: "/templates", icon: FileText },
     ],
   },
   {
     label: "OPERATIONS",
     items: [
+      { name: "Reports", href: "/reports", icon: FileSpreadsheet },
       { name: "Background Jobs", href: "/jobs", icon: Cpu },
+    ],
+  },
+  {
+    label: "SYSTEM",
+    items: [
       { name: "Settings", href: "/settings", icon: Settings },
     ],
   },
@@ -103,19 +108,19 @@ export function Sidebar({
       >
         {/* ── Brand Header ── */}
         <div>
-          <div className="h-14 px-4 border-b border-white/[0.06] flex items-center justify-between">
+          <div className="h-16 px-4 border-b border-white/[0.06] flex items-center justify-between">
             <Link
               href="/dashboard"
               onClick={onCloseMobile}
               className="flex items-center gap-2.5 overflow-hidden"
             >
-              <div className="w-7 h-7 rounded-lg bg-[#6366F1] flex items-center justify-center text-white flex-shrink-0 font-bold shadow-xs">
+              <div className="w-8 h-8 rounded-lg bg-[#6366F1] flex items-center justify-center text-white flex-shrink-0 font-bold shadow-xs">
                 <Globe2 className="w-4 h-4" />
               </div>
               {(!isCollapsed || mobileOpen) && (
                 <div className="flex flex-col">
                   <span className="text-sm font-semibold tracking-tight text-[#F8FAFC]">EXPORT AI</span>
-                  <span className="text-[11px] text-slate-400 font-mono tracking-tight">Export Intelligence OS</span>
+                  <span className="text-[11px] text-slate-400 font-mono tracking-tight">Enterprise Export CRM</span>
                 </div>
               )}
             </Link>
@@ -123,8 +128,9 @@ export function Sidebar({
             {/* Desktop Collapse Button */}
             <button
               onClick={() => setIsCollapsed(!isCollapsed)}
-              className="hidden md:flex p-1 rounded-md text-slate-400 hover:text-white hover:bg-white/[0.04] transition-colors"
+              className="hidden md:flex p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-white/[0.04] transition-colors cursor-pointer"
               title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+              aria-label={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
             >
               {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
             </button>
@@ -132,7 +138,7 @@ export function Sidebar({
             {/* Mobile Close Drawer Button */}
             <button
               onClick={onCloseMobile}
-              className="md:hidden p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-white/[0.04] transition-colors"
+              className="md:hidden p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-white/[0.04] transition-colors cursor-pointer"
               aria-label="Close menu"
             >
               <ChevronLeft className="w-5 h-5" />
@@ -140,16 +146,18 @@ export function Sidebar({
           </div>
 
           {/* ── Navigation Groups ── */}
-          <div className="py-3 px-2.5 space-y-5 overflow-y-auto max-h-[calc(100vh-140px)]">
+          <div className="py-3 px-2.5 space-y-4 overflow-y-auto max-h-[calc(100vh-145px)]">
             {navGroups.map((group) => (
               <div key={group.label} className="space-y-0.5">
                 {(!isCollapsed || mobileOpen) && (
-                  <span className="px-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1 font-mono">
+                  <span className="px-2.5 text-[10px] font-semibold text-slate-500 uppercase tracking-wider block mb-1 font-mono">
                     {group.label}
                   </span>
                 )}
                 {group.items.map((item) => {
-                  const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
+                  const isActive =
+                    pathname === item.href ||
+                    (item.href !== "/dashboard" && pathname.startsWith(item.href));
                   const Icon = item.icon;
                   return (
                     <Link
@@ -160,14 +168,14 @@ export function Sidebar({
                       className={cn(
                         "flex items-center gap-3 px-2.5 h-[38px] rounded-lg text-sm font-medium transition-colors relative group",
                         isActive
-                          ? "bg-white/[0.06] text-white font-medium border-l-2 border-[#6366F1]"
+                          ? "bg-white/[0.07] text-white font-medium border-l-2 border-[#6366F1]"
                           : "text-slate-400 hover:text-white hover:bg-white/[0.035]"
                       )}
                     >
                       <Icon
                         className={cn(
                           "w-4 h-4 flex-shrink-0 transition-colors",
-                          isActive ? "text-[#6366F1]" : "text-slate-400 group-hover:text-white"
+                          isActive ? "text-[#818cf8]" : "text-slate-400 group-hover:text-white"
                         )}
                       />
                       {(!isCollapsed || mobileOpen) && <span className="truncate">{item.name}</span>}
@@ -182,13 +190,17 @@ export function Sidebar({
         {/* ── Footer / Status & Logout ── */}
         <div className="p-3 border-t border-white/[0.06] bg-[#080B10] space-y-2">
           {(!isCollapsed || mobileOpen) && (
-            <div className="px-2.5 py-1.5 rounded-md bg-[#0B0F14] border border-white/[0.04] flex items-center justify-between text-xs font-mono">
-              <span className="flex items-center gap-1.5 text-slate-400">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E]" />
-                RabbitMQ
+            <Link
+              href="/jobs"
+              onClick={onCloseMobile}
+              className="px-2.5 py-1.5 rounded-md bg-[#0B0F14] border border-white/[0.06] flex items-center justify-between text-xs font-mono hover:border-white/[0.14] transition-colors group"
+            >
+              <span className="flex items-center gap-1.5 text-slate-300">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]" />
+                Outbox Telemetry
               </span>
-              <span className="text-[#22C55E]">Connected</span>
-            </div>
+              <span className="text-slate-400 group-hover:text-slate-200 transition-colors">Jobs →</span>
+            </Link>
           )}
           <Link
             href="/login"
