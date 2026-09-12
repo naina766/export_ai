@@ -180,6 +180,7 @@ export default function OpportunitiesKanbanPage() {
   const [activeOpportunity, setActiveOpportunity] = useState<Opportunity | null>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = useState<string | null>(null);
+  const [selectedMobileStage, setSelectedMobileStage] = useState<string>("ALL");
   const [isLoading, setIsLoading] = useState(false);
 
   const fetchOpportunities = async () => {
@@ -208,13 +209,24 @@ export default function OpportunitiesKanbanPage() {
   const handleDrop = async (stageId: string) => {
     if (!draggedId) return;
 
+    const oppId = draggedId;
     // Optimistic UI Update
     setOpportunities((prev) =>
-      prev.map((o) => (o.id === draggedId ? { ...o, stage: stageId, daysInStage: 0 } : o))
+      prev.map((o) => (o.id === oppId ? { ...o, stage: stageId, daysInStage: 0 } : o))
     );
     setDragOverStage(null);
     setDraggedId(null);
     toast.success(`Opportunity moved to ${STAGES.find((s) => s.id === stageId)?.label}`);
+
+    try {
+      await fetch("/api/opportunities", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: oppId, stage: stageId }),
+      });
+    } catch {
+      // ignore network errors
+    }
   };
 
   const filteredOpportunities = opportunities.filter((o) => {
@@ -292,9 +304,41 @@ export default function OpportunitiesKanbanPage() {
         ))}
       </div>
 
+      {/* ── MOBILE STAGE SELECTOR (Prevents cramped 8-columns on small screens) ── */}
+      <div className="md:hidden flex items-center gap-2 overflow-x-auto pb-1">
+        <span className="text-xs font-mono text-slate-400 shrink-0">View Stage:</span>
+        <button
+          type="button"
+          onClick={() => setSelectedMobileStage("ALL")}
+          className={cn(
+            "px-2.5 py-1 rounded-md text-xs font-mono border whitespace-nowrap",
+            selectedMobileStage === "ALL"
+              ? "bg-[#6366F1]/15 text-[#818cf8] border-[#6366F1]/50"
+              : "bg-[#0B0F14] text-slate-400 border-white/[0.08]"
+          )}
+        >
+          All Stages
+        </button>
+        {STAGES.map((st) => (
+          <button
+            key={st.id}
+            type="button"
+            onClick={() => setSelectedMobileStage(st.id)}
+            className={cn(
+              "px-2.5 py-1 rounded-md text-xs font-mono border whitespace-nowrap",
+              selectedMobileStage === st.id
+                ? "bg-[#6366F1]/15 text-[#818cf8] border-[#6366F1]/50 font-semibold"
+                : "bg-[#0B0F14] text-slate-400 border-white/[0.08]"
+            )}
+          >
+            {st.label}
+          </button>
+        ))}
+      </div>
+
       {/* ── 8-STAGE KANBAN BOARD ── */}
       <div className="flex gap-5 overflow-x-auto pb-6 scrollbar-thin">
-        {STAGES.map((stage) => {
+        {STAGES.filter((st) => selectedMobileStage === "ALL" || st.id === selectedMobileStage).map((stage) => {
           const stageDeals = filteredOpportunities.filter((o) => o.stage === stage.id);
           const stageTotal = stageDeals.reduce((sum, o) => sum + (Number(o.inquiryValue) || 0), 0);
           const isOver = dragOverStage === stage.id;

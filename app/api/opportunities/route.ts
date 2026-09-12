@@ -72,3 +72,41 @@ export async function POST(req: NextRequest) {
     return handleApiError(error);
   }
 }
+
+// PATCH /api/opportunities
+export async function PATCH(req: NextRequest) {
+  try {
+    const user = await getAuthUser(req);
+    if (!user) return errorResponse("Unauthorized", 401);
+
+    const body = await req.json();
+    const { id, stage } = body;
+
+    if (!id || !stage) {
+      return errorResponse("Opportunity id and stage are required", 400);
+    }
+
+    const updated = await prisma.salesOpportunity.update({
+      where: { id },
+      data: { stage: stage as OpportunityStage },
+      include: {
+        lead: { select: { id: true, companyName: true } },
+      },
+    });
+
+    await prisma.activity.create({
+      data: {
+        type: "OPPORTUNITY_STAGE_CHANGE",
+        title: `Opportunity Stage Updated: ${updated.title}`,
+        description: `Stage changed to ${updated.stage}`,
+        userId: user.userId,
+        leadId: updated.leadId,
+        opportunityId: updated.id,
+      },
+    });
+
+    return successResponse(updated, "Opportunity stage updated successfully");
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
