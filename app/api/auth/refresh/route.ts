@@ -52,14 +52,16 @@ export async function POST(req: NextRequest) {
     const newAccessToken = await signAccessToken(tokenPayload);
     const newRefreshToken = await signRefreshToken(tokenPayload);
 
-    // Replace old refresh token
-    await prisma.refreshToken.delete({ where: { token: refreshToken } });
-    await prisma.refreshToken.create({
-      data: {
-        token: newRefreshToken,
-        userId: user.id,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      },
+    // Replace old refresh token atomically
+    await prisma.$transaction(async (tx) => {
+      await tx.refreshToken.delete({ where: { token: refreshToken } });
+      await tx.refreshToken.create({
+        data: {
+          token: newRefreshToken,
+          userId: user.id,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        },
+      });
     });
 
     await setAuthCookies(newAccessToken, newRefreshToken);

@@ -12,9 +12,16 @@ import {
   errorResponse,
   handleApiError,
 } from "@/lib/api";
+import { rateLimiter } from "@/lib/security/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() || "local";
+    const rl = rateLimiter.check(`register:${ip}`, 5, 10 * 60 * 1000);
+    if (!rl.success) {
+      return errorResponse("Too many registration attempts. Please wait before creating another account.", 429);
+    }
+
     const body = await req.json();
     const parsed = RegisterSchema.safeParse(body);
 
@@ -22,7 +29,7 @@ export async function POST(req: NextRequest) {
       return errorResponse("Validation failed", 400, parsed.error.flatten());
     }
 
-    const { name, email, password, phone, role } = parsed.data;
+    const { name, email, password, phone } = parsed.data;
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
@@ -31,7 +38,7 @@ export async function POST(req: NextRequest) {
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // First user is auto-approved as admin
+    // First user is auto-approved as admin bootstrap; all subsequent public registrations are AGENT
     const userCount = await prisma.user.count();
     const isFirstUser = userCount === 0;
 
@@ -41,7 +48,7 @@ export async function POST(req: NextRequest) {
         email,
         password: hashedPassword,
         phone,
-        role: isFirstUser ? "ADMIN" : role || "AGENT",
+        role: isFirstUser ? "ADMIN" : "AGENT",
         isApproved: true,
       },
       select: {

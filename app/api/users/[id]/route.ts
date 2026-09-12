@@ -5,8 +5,11 @@ import { getAuthUser } from "@/lib/auth";
 
 type Params = { params: Promise<{ id: string }> };
 
-export async function GET(_req: NextRequest, { params }: Params) {
+export async function GET(req: NextRequest, { params }: Params) {
   try {
+    const requester = await getAuthUser(req);
+    if (!requester) return errorResponse("Unauthorized", 401);
+
     const { id } = await params;
     const user = await prisma.user.findUnique({
       where: { id },

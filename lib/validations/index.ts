@@ -11,7 +11,6 @@ export const RegisterSchema = z.object({
     .regex(/[A-Z]/, "Must contain at least one uppercase letter")
     .regex(/[0-9]/, "Must contain at least one number"),
   phone: z.string().optional(),
-  role: z.enum(["ADMIN", "MANAGER", "AGENT"]).optional(),
 });
 
 export const LoginSchema = z.object({

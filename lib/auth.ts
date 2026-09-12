@@ -2,9 +2,19 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { NextRequest } from "next/server";
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "fallback-secret-change-me"
-);
+export function getJwtSecret(): Uint8Array {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("FATAL: JWT_SECRET environment variable is required in production.");
+    }
+    return new TextEncoder().encode("dev-secret-key-at-least-32-chars-long-for-hmac-sha256");
+  }
+  if (secret.length < 32 && process.env.NODE_ENV === "production") {
+    throw new Error("FATAL: JWT_SECRET must be at least 32 characters long in production.");
+  }
+  return new TextEncoder().encode(secret);
+}
 
 export interface JWTPayload {
   userId: string;
@@ -20,7 +30,7 @@ export async function signAccessToken(payload: JWTPayload): Promise<string> {
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(process.env.JWT_ACCESS_EXPIRES_IN || "15m")
-    .sign(JWT_SECRET);
+    .sign(getJwtSecret());
 }
 
 export async function signRefreshToken(payload: JWTPayload): Promise<string> {
@@ -28,14 +38,14 @@ export async function signRefreshToken(payload: JWTPayload): Promise<string> {
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(process.env.JWT_REFRESH_EXPIRES_IN || "7d")
-    .sign(JWT_SECRET);
+    .sign(getJwtSecret());
 }
 
 // ─── Token Verification ────────────────────────────────────────────────────
 
 export async function verifyToken(token: string): Promise<JWTPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const { payload } = await jwtVerify(token, getJwtSecret());
     return payload as unknown as JWTPayload;
   } catch {
     return null;
