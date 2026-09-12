@@ -27,32 +27,47 @@ export async function POST(req: NextRequest) {
     }
 
     let inserted = 0;
-    let duplicates = 0;
-    const insertedIds: string[] = [];
-
+    // 1. Normalize all valid rows
+    const normalizedRows = [];
     for (let i = 0; i < rawProspects.length; i++) {
-      const normalized = normalizeProspect(rawProspects[i], i + 1);
-      if (!normalized) continue;
+      const norm = normalizeProspect(rawProspects[i], i + 1);
+      if (norm) normalizedRows.push(norm);
+    }
 
-      const existing = await prisma.buyerLead.findUnique({
-        where: { normalizedEmail: normalized.normalizedEmail },
-      });
+    // 2. Query existing emails in a single IN query
+    const candidateEmails = normalizedRows.map((r) => r.normalizedEmail);
+    const existingRecords = await prisma.buyerLead.findMany({
+      where: { normalizedEmail: { in: candidateEmails } },
+      select: { normalizedEmail: true },
+    });
+    const seenEmails = new Set(existingRecords.map((e) => e.normalizedEmail));
 
-      if (existing) {
+    const toInsert = [];
+    let duplicates = 0;
+    for (const row of normalizedRows) {
+      if (seenEmails.has(row.normalizedEmail)) {
         duplicates++;
-        continue;
+      } else {
+        seenEmails.add(row.normalizedEmail); // Prevent duplicates within the same CSV
+        toInsert.push(row);
       }
+    }
 
-      try {
-        const lead = await prisma.$transaction(async (tx) => {
+    // 3. Insert in chunked transactions (25 per chunk)
+    const insertedIds: string[] = [];
+    const BATCH_SIZE = 25;
+    for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
+      const chunk = toInsert.slice(i, i + BATCH_SIZE);
+      await prisma.$transaction(async (tx) => {
+        for (const item of chunk) {
           const created = await tx.buyerLead.create({
             data: {
-              ...normalized,
+              ...item,
               createdById: user.userId,
             },
           });
+          insertedIds.push(created.id);
 
-          // Enqueue AI qualification
           await createOutboxEvent(tx, {
             eventKey: `lead:${created.id}:classify`,
             eventType: "AI_CLASSIFY",
@@ -60,16 +75,11 @@ export async function POST(req: NextRequest) {
             aggregateId: created.id,
             payload: { leadId: created.id },
           });
-
-          return created;
-        });
-
-        insertedIds.push(lead.id);
-        inserted++;
-      } catch (err) {
-        console.warn("[CSV Import] Failed to insert row:", (err as Error).message);
-      }
+        }
+      });
     }
+
+    inserted = insertedIds.length;
 
     // Record audit log
     await prisma.auditLog.create({

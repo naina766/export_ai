@@ -81,7 +81,29 @@ export async function DELETE(
     const user = await getAuthUser(req);
     if (!user) return errorResponse("Unauthorized", 401);
 
-    await prisma.buyerLead.delete({ where: { id: params.id } });
+    const lead = await prisma.buyerLead.findUnique({
+      where: { id: params.id },
+      select: { id: true, assignedToId: true, createdById: true, companyName: true },
+    });
+
+    if (!lead) return errorResponse("Buyer lead not found", 404);
+
+    // Authorization: ADMIN, MANAGER, or assigned/creating agent
+    const isPrivileged = ["ADMIN", "MANAGER"].includes(user.role);
+    const isOwner = lead.assignedToId === user.userId || lead.createdById === user.userId;
+
+    if (!isPrivileged && !isOwner) {
+      return errorResponse("Forbidden: Insufficient permissions to delete this buyer lead", 403);
+    }
+
+    // Cleanly delete dependent activities, follow-ups, and notifications in a transaction
+    await prisma.$transaction(async (tx) => {
+      await tx.activity.deleteMany({ where: { leadId: params.id } });
+      await tx.followUp.deleteMany({ where: { leadId: params.id } });
+      await tx.notification.deleteMany({ where: { leadId: params.id } });
+      await tx.buyerLead.delete({ where: { id: params.id } });
+    });
+
     return successResponse({ id: params.id }, "Buyer lead deleted successfully");
   } catch (error) {
     return handleApiError(error);

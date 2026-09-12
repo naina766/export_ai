@@ -47,12 +47,15 @@ export async function GET(req: NextRequest) {
       ...(minScore && { leadScore: { gte: parseInt(minScore) } }),
     };
 
+    const ALLOWED_SORT_FIELDS = ["createdAt", "leadScore", "companyName", "updatedAt", "country"];
+    const safeSortBy = ALLOWED_SORT_FIELDS.includes(sortBy) ? sortBy : "createdAt";
+
     const [leads, total] = await Promise.all([
       prisma.buyerLead.findMany({
         where,
         skip,
         take: limit,
-        orderBy: { [sortBy]: sortOrder },
+        orderBy: { [safeSortBy]: sortOrder },
         include: {
           assignedTo: {
             select: { id: true, name: true, email: true, avatar: true },
