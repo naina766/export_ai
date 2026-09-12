@@ -1,172 +1,158 @@
 # 🔮 EXPORT AI — Enterprise B2B Export Sales Operating System
-### Autonomous Buyer Discovery, AI Personalization & Wholesale Commercial Outreach
+### Autonomous Buyer Discovery, AI Personalization, Transactional Outbox & Wholesale Export Workflows
 
-EXPORT AI is an enterprise-grade AI operating system built for international export sales teams specializing in Himalayan hand-hammered singing bowls, chakra tuning sets, and artisanal wellness instruments.
+**EXPORT AI** is a production-grade B2B Sales Operating System tailored for international wholesale exporters of artisanal Himalayan sound wellness instruments (Tibetan hand-hammered singing bowls, 7-chakra tuned sets, gongs, and meditation accessories).
 
-The platform integrates multi-source wholesale buyer discovery, Gemini 1.5 Flash commercial qualification, 6-stage automated Gmail outreach campaigns, proforma quotation generation (FOB/CIF/EXW), and a distributed RabbitMQ background worker cluster into a unified Linear × Attio-inspired interface.
-
----
-
-## 🔗 Live Production Deployment & Demo
-
-* 🌐 **Live Application:** [https://realestatecrm-sigma.vercel.app](https://realestatecrm-sigma.vercel.app)
-* 📦 **GitHub Repository:** [https://github.com/naina766/real_estate_crm](https://github.com/naina766/real_estate_crm)
-
-### 🔑 Demo Credentials
-
-| Role | Email | Password | Access Level |
-| :--- | :--- | :--- | :--- |
-| **Admin / Export Director** | `admin@exportai.com` | `Admin@1234` | Full Command Center & Telemetry Access |
-| **Sales Manager** | `manager@exportai.com` | `Agent@1234` | Campaigns, Leads, Pipeline & Quotations |
+The system coordinates multi-source wholesale buyer discovery, Google Gemini 1.5 Flash commercial qualification, 6-stage automated Gmail outreach campaigns, proforma quotation generation (FOB/CIF/EXW), and a distributed RabbitMQ background worker cluster operating with the **Transactional Outbox pattern**.
 
 ---
 
-## 🌟 Key Architecture & Capabilities
+## 🌟 Architecture Overview
 
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       Next.js 16 App Router Frontend                        │
+│   • Command Center Dashboard (Live DB)   • 8-Stage Sales Pipeline Kanban    │
+│   • Buyer Discovery Cockpit              • Proforma Quotation PDF Generator │
+│   • Dense Buyer Leads CRM Directory      • 6-Step AI Outreach Campaign      │
+│   • Tabbed CRM Detail Experience         • Responsive Mobile Drawer Shell   │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ HTTP / JSON
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    Next.js API Routes & Edge Middleware                     │
+│   • Route Authentication Guard           • Sliding-Window Rate Limiting     │
+│   • Strict Zod Schema Validation         • Security Headers (HSTS, CSP)     │
+│   • Role-Based Access Control (RBAC)     • Gmail OAuth2 Integration         │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        PostgreSQL 16 via Prisma ORM                         │
+│   • ACID Transactions ($transaction)     • Query-Backed B-tree Indexes      │
+│   • Foreign Key Referential Integrity    • Cascade Deletion Rules           │
+└──────────────────┬──────────────────────────────────────────────────────────┘
+                   │ Commits Atomically Inside Local Transaction
+                   ▼
+┌──────────────────────────────────────┐
+│       Transactional Outbox Table     │
+│   • status: PENDING / PUBLISHED      │
+│   • compound index: [status, created]│
+└──────────────────┬───────────────────┘
+                   │ Polling & Flush (`flushPendingOutbox`)
+                   ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         RabbitMQ Message Broker                             │
+│   • Main Topic Exchange: `export.jobs.exchange`                             │
+│   • Dead Letter Exchange: `export.dlx` (Queue: `dead-letter.queue`)         │
+└──────────────────┬──────────────────────────────────────────────────────────┘
+                   │ Manual ACK / Exponential Backoff / DLQ Nack
+                   ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      Distributed Background Workers                         │
+│   • discovery.queue: Simulates international wholesale directory crawling   │
+│   • validation.queue: RFC-5322 syntax, domain MX & disposable email checks  │
+│   • ai.queue: Gemini 1.5 Flash evaluation with heuristic fallback engine    │
+│   • email.queue: Paced Gmail API outreach message dispatch                 │
+│   • report.queue: Proforma quotation & export catalog PDF generation        │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
-                                  EXPORT AI PLATFORM ARCHITECTURE
-                                  
-     ┌─────────────────────────────────────────────────────────────────────────────┐
-     │                       Next.js 16 App Router Frontend                        │
-     │   • Export Sales Command Center          • 8-Stage Sales Pipeline Kanban    │
-     │   • Buyer Discovery 12-Column Cockpit    • Proforma Quotation PDF Generator │
-     │   • 60px/48px Dense Buyer CRM Directory  • 6-Step AI Outreach Campaign      │
-     └──────────────────────────────────────┬──────────────────────────────────────┘
-                                            │
-                                            ▼
-     ┌─────────────────────────────────────────────────────────────────────────────┐
-     │                    Next.js API & Server Actions Layer                       │
-     │   • JWT Session Authentication           • Rate-Limiting & Security         │
-     │   • SSE Real-time Telemetry Stream       • Gmail OAuth 2.0 Token Manager    │
-     └──────────────┬──────────────────────────────────────────────┬───────────────┘
-                    │                                              │
-                    ▼                                              ▼
-     ┌──────────────────────────────┐              ┌──────────────────────────────┐
-     │       Prisma ORM Layer       │              │  RabbitMQ Direct Exchange    │
-     │  (PostgreSQL / SQLite)       │              │  (export.jobs.exchange)      │
-     └──────────────────────────────┘              └──────────────┬───────────────┘
-                                                                  │
-                    ┌─────────────────────────────────────────────┴─────────────────────────────────────────────┐
-                    ▼                             ▼                               ▼                             ▼
-     ┌──────────────────────────────┐ ┌──────────────────────────────┐ ┌──────────────────────────────┐ ┌──────────────────────────────┐
-     │   discovery.queue (Worker)   │ │   validation.queue (Worker)  │ │      ai.queue (Worker)       │ │     email.queue (Worker)     │
-     │ Multi-source Wholesale Crawl │ │ RFC-5322 & MX DNS Check      │ │ Gemini 1.5 Flash Scorer      │ │ Gmail API Safe Deliverability│
-     └──────────────────────────────┘ └──────────────────────────────┘ └──────────────────────────────┘ └──────────────────────────────┘
-```
 
 ---
 
-## 🚀 Key Features
+## 🚀 Key Modules & Capabilities
 
-### 1. 📊 Export Sales Command Center (`/dashboard`)
-- **6-KPI Unified Strip:** Real-time metrics for Total Buyers, Qualified Leads, Active Campaigns, Pipeline Value, Open Opportunities, and Win Rate.
-- **70% Operations / 30% AI Split:** Live export pipeline progression, geographic market distribution, and real-time AI Sales Brief with Next Best Actions.
-
-### 2. 🔍 Buyer Discovery Cockpit (`/discovery`)
-- **12-Column Layout:** 7-column parameter configuration with preset product chips (*Tibetan Hand-Hammered*, *7 Chakra Tuning Sets*, *Full Moon Bowls*, *Crystal Quartz*, *Temple Gongs*), target market multi-select, and buyer persona segmented controls.
-- **Live Terminal & 5-Step Pipeline:** Real-time 5-stage pipeline (*Search → Extract → Normalize → Validate → AI Score*) with filterable operations console.
-
-### 3. 👥 Buyer Leads Directory & CRM (`/leads`)
-- **Comfortable & Compact Density:** 60px default / 48px dense row height with sticky backdrop-blurred headers and keyboard navigation.
-- **540px Slide-in Detail Drawer:** Tabbed CRM profile containing AI qualification breakdown, contact verification, outreach timeline, and action triggers.
-- **Floating Bulk Actions:** Multi-select action bar for bulk campaign enrollment, qualification tagging, and CSV export.
-
-### 4. ✉️ 6-Step Campaign Automation (`/campaigns`, `/campaigns/new`)
-- **Campaign Wizard:** 6-step guided wizard (Details → Audience → Catalog Selection → AI Personalization Prompt → Gmail Deliverability Preview → Launch).
-- **Gmail OAuth API Integration:** Directly dispatches personalized 1-on-1 cold outreach using official Gmail API credentials with rate-limiting and unsubscribe headers.
-
-### 5. 📑 Proforma Commercial Quotation Builder (`/quotations`, `/quotations/new`)
-- **Incoterms Support:** Instant calculation for FOB (Free On Board), CIF (Cost, Insurance, Freight), and EXW (Ex Works).
-- **Live Document Preview Sheet:** Interactive PDF document generation with company seal, bank details, MOQ terms, and validity windows.
-
-### 6. 💼 8-Stage Sales Pipeline Kanban (`/opportunities`)
-- Visual drag-and-drop opportunity board (*Prospecting → Qualified → Contacted → Interested → Negotiation → Quotation → Closed Won → Closed Lost*) with currency formatting and deal inspection drawers.
-
-### 7. ⚙️ Operations & RabbitMQ Telemetry Console (`/jobs`)
-- Real-time queue metrics, worker cluster statuses, processing rates, retry counters, and dead-letter queue (DLX) inspection.
+* **Lead Command Center & Analytics**: Live database reporting (`/api/analytics/overview`, `/api/analytics/funnel`) displaying real buyer counts, conversion funnel stages, and country distributions with skeleton loading and error states.
+* **Transactional Outbox Resilience**: Eliminates dual-write anomalies across PostgreSQL mutations and RabbitMQ publishing. Events and leads commit atomically; workers tolerate broker disconnects with standby reconnect loops.
+* **Resilient RabbitMQ Consumers**: Malformed JSON payloads are immediately routed to Dead-Letter Queues without infinite retry loops; transient failures use exponential backoff (1s, 2s, 4s).
+* **Enterprise Security & RBAC**:
+  * Public registration privilege escalation eliminated (users assigned `AGENT` unless first-user bootstrap).
+  * Strict JWT secret length validation (`>= 32` characters in production).
+  * Protected lead deletion enforcing `ADMIN`, `MANAGER`, or owner authorization with transactional child cleanup.
+  * In-memory sliding-window rate limiting on authentication and discovery endpoints.
+  * 10MB file upload size cap with MIME-type whitelisting.
+  * Sanitized unsubscribe endpoints preventing stored or reflected XSS.
+* **AI Qualification with Heuristic Fallback**:
+  * Google Gemini 1.5 Flash prompt structure protected by `<prospect_data>` XML containers.
+  * Strict Zod output schema validation.
+  * Deterministic rule-based scoring engine kicks in during API outages, rate limits, or missing keys.
+* **Complete Responsive SaaS Layout**: 5-group organized sidebar navigation, mobile drawer with backdrop, and full table pagination with Next.js client routing.
 
 ---
 
 ## 🛠️ Technology Stack
 
 | Layer | Technology |
-| :--- | :--- |
-| **Framework** | Next.js 16 (App Router with Turbopack) |
-| **Frontend Library** | React 19, TypeScript, Tailwind CSS |
-| **Animation & Motion** | Framer Motion (restrained enterprise animations) |
-| **Icons** | Lucide React |
-| **Database & ORM** | Prisma ORM (SQLite for local dev, PostgreSQL / Neon for production) |
-| **Message Broker** | RabbitMQ (amqplib) with direct exchange and dead-letter queues |
-| **AI Intelligence** | Google Gemini 1.5 Flash (`@google/generative-ai`) |
-| **Outreach Delivery** | Google Gmail API (`googleapis` OAuth 2.0) |
-| **Authentication** | Custom JWT session management with bcrypt password hashing |
-| **PDF Generation** | jsPDF & jsPDF-AutoTable |
+|---|---|
+| **Framework** | Next.js 16.2.4 (App Router, Server Actions, React 19) |
+| **Language** | TypeScript 5 (Strict Mode) |
+| **Database** | PostgreSQL 16 |
+| **ORM** | Prisma 5.22.0 |
+| **Message Broker** | RabbitMQ 3.12 (AMQP Protocol) |
+| **Styling** | Tailwind CSS v4 |
+| **Authentication** | Jose (Stateless HMAC-SHA256 JWT, Refresh Token Rotation) |
+| **Validation** | Zod v4 |
+| **AI Integration** | Google Generative AI SDK (`@google/generative-ai`) |
+| **Email** | Google APIs (`googleapis` for Gmail OAuth2) |
+| **Testing** | Node.js Test Runner (`tsx --test`) |
+| **Containerization** | Docker, Docker Compose |
 
 ---
 
-## ⚡ Getting Started
+## 📚 Technical Documentation Index
 
-### Prerequisites
-- **Node.js**: `v18.17.0` or higher
-- **npm** or **pnpm**
-- **RabbitMQ** (Optional for full worker processing, app runs with built-in mock fallback)
+Detailed architectural and engineering documents are available in the `docs/` directory:
+
+1. 📖 **[System Architecture Guide](docs/ARCHITECTURE.md)**: Deep dive into the client, API, database, messaging, and worker layers.
+2. 🔄 **[RabbitMQ & Transactional Outbox](docs/OUTBOX_RABBITMQ.md)**: The dual-write problem, transaction mechanics, topology, and DLQ routing.
+3. 🤖 **[AI Integration & Security](docs/AI_ARCHITECTURE.md)**: Prompt injection defense, input sanitization, Zod output schemas, and fallback scoring.
+4. 💼 **[Technical Interview Guide](docs/INTERVIEW_GUIDE.md)**: 30+ in-depth interview questions and code-grounded answers across PostgreSQL, RabbitMQ, AI, Security, and System Design.
+5. 🛡️ **[Verified Resume Claims](docs/RESUME_CLAIMS.md)**: Matrix of verifiable portfolio claims with source code references.
+6. 📋 **[Finalization Report](docs/FINALIZATION_REPORT.md)**: Detailed audit summary, verification outputs, and files modified.
 
 ---
 
-### 1. Clone & Install Dependencies
+## 💻 Local Setup & Development
 
+### 1. Prerequisites
+* Node.js 20+
+* Docker & Docker Compose (or local PostgreSQL 16 and RabbitMQ 3.12)
+* npm
+
+### 2. Clone and Install Dependencies
 ```bash
-git clone https://github.com/your-username/real-estate-crm.git
+git clone https://github.com/naina766/real_estate_crm.git
 cd real-estate-crm
 npm install
 ```
 
----
-
-### 2. Configure Environment Variables
-
-Create a `.env` file in the root directory by copying `.env.example`:
-
+### 3. Configure Environment Variables
+Copy `.env.example` to `.env` and configure your credentials:
 ```bash
 cp .env.example .env
 ```
 
-Ensure your `.env` contains the required keys:
-
+Key environment variables:
 ```env
 # Database
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/export_ai_crm?schema=public"
 
-# JWT Authentication
-JWT_SECRET="your-super-secret-jwt-key-min-32-characters-long"
+# Authentication (Minimum 32 characters in production)
+JWT_SECRET="development-secret-key-at-least-32-chars-long-for-hmac-sha256"
 JWT_ACCESS_EXPIRES_IN="15m"
 JWT_REFRESH_EXPIRES_IN="7d"
-TOKEN_ENCRYPTION_KEY="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
-# Application URL
-NEXTAUTH_URL="http://localhost:3000"
-NEXT_PUBLIC_APP_URL="http://localhost:3000"
-NODE_ENV="development"
-
-# RabbitMQ Message Broker
+# RabbitMQ
 RABBITMQ_URL="amqp://localhost:5672"
 RABBITMQ_EXCHANGE="export.jobs.exchange"
 RABBITMQ_DLX="export.dlx"
 
-# Google Gemini AI
-GEMINI_API_KEY="your-gemini-api-key"
+# Google Gemini AI (Optional for testing; fallback will activate if unset)
+GEMINI_API_KEY=""
 GEMINI_MODEL="gemini-1.5-flash"
-
-# Google Gmail API OAuth 2.0
-GOOGLE_CLIENT_ID="your-google-client-id"
-GOOGLE_CLIENT_SECRET="your-google-client-secret"
-GOOGLE_REDIRECT_URI="http://localhost:3000/api/gmail/callback"
 ```
 
----
-
-### 3. Initialize Database & Seed Sample Data
-
+### 4. Initialize Database
 ```bash
 # Push schema and generate Prisma client
 npx prisma db push
@@ -176,89 +162,62 @@ npx prisma generate
 npm run db:seed
 ```
 
----
-
-### 4. Run the Background Workers (RabbitMQ)
-
-In a separate terminal, launch the distributed worker processors:
-
+### 5. Launch Background Workers
+In a separate terminal window:
 ```bash
 npm run workers
 ```
 
----
-
-### 5. Start the Development Server
-
+### 6. Start the Web Server
 ```bash
 npm run dev
 ```
-
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
-## 🔑 Default Credentials
+## 🐳 Docker Setup
 
-| Role | Email | Password |
-| :--- | :--- | :--- |
-| **Admin / Export Director** | `admin@exportai.com` | `Admin@1234` |
-| **Sales Manager** | `manager@exportai.com` | `Agent@1234` |
-| **Sales Agent** | `agent@exportai.com` | `Agent@1234` |
-
----
-
-## 📦 Production Build Verification
-
-To test and create an optimized production build:
+Run the full stack (PostgreSQL, RabbitMQ, Next.js Web App, and Worker pool) using Docker Compose:
 
 ```bash
+# Build and launch all services in detached mode
+docker compose up --build -d
+
+# Check service logs
+docker compose logs -f app
+docker compose logs -f worker
+
+# Stop containers
+docker compose down
+```
+
+---
+
+## 🧪 Automated Testing & Verification
+
+Run the test suite covering authentication, RBAC, outbox state transitions, rate limiting, and lead validation:
+
+```bash
+# Run all automated unit and integration tests
+npm test
+
+# Run TypeScript strict type-checking
+npx tsc --noEmit
+
+# Run ESLint
+npm run lint
+
+# Build production bundle
 npm run build
-npm run start
 ```
 
 ---
 
-## 📂 Project Structure
+## 🛡️ Default Demo Accounts
 
-```
-real-estate-crm/
-├── app/
-│   ├── (auth)/                # Clean login & registration views
-│   ├── (dashboard)/           # Authenticated application workspace
-│   │   ├── dashboard/         # Command center overview
-│   │   ├── discovery/         # 12-column buyer discovery cockpit
-│   │   ├── leads/             # Buyer leads directory & detail drawer
-│   │   ├── campaigns/         # 6-step campaign wizard & deliverability
-│   │   ├── opportunities/     # 8-stage sales pipeline kanban
-│   │   ├── quotations/        # Proforma quotation builder & PDF generator
-│   │   ├── products/          # Wholesale product catalog
-│   │   ├── ai-insights/       # Market intelligence center
-│   │   ├── jobs/              # RabbitMQ telemetry console
-│   │   ├── analytics/         # Export performance analytics
-│   │   ├── documents/         # Export assets & certifications
-│   │   └── settings/          # Gmail OAuth & Gemini AI credentials
-│   └── api/                   # 27 REST & SSE endpoints
-├── components/
-│   ├── layout/                # TopNavbar (3-column grid), Sidebar, CommandPalette
-│   ├── ui/                    # Centralized design system (Breadcrumbs, PageHeader, MetricStrip)
-│   ├── discovery/             # Execution logs & pipeline trackers
-│   ├── leads/                 # Table views & CRM detail sheets
-│   └── quotations/            # Quotation invoice preview drawers
-├── lib/
-│   ├── ai/                    # Gemini 1.5 Flash scoring & fallback rules
-│   ├── auth/                  # JWT session tokens & password hashing
-│   ├── email/                 # Gmail API sender & RFC syntax validation
-│   ├── rabbitmq/              # Message broker connection & publishers
-│   └── prisma.ts              # Database connection singleton
-├── prisma/
-│   ├── schema.prisma          # Database schema models
-│   └── seed.ts                # Realistic export dataset seed script
-└── workers/                   # Standalone RabbitMQ background workers
-```
-
----
-
-## 🛡️ License
-
-This project is proprietary and built for enterprise export sales automation.
+| Role | Email | Password | Access Rights |
+| :--- | :--- | :--- | :--- |
+| **Admin** | `admin@exportai.com` | `Admin@1234` | System Configuration, User Management, Global Deletions |
+| **Manager** | `manager@exportai.com` | `Agent@1234` | Campaigns, Leads, Pipeline, Quotations & Discovery |
+| **Agent** | `agent@exportai.com` | `Agent@1234` | Assigned Leads, Quotations & Outreach |
