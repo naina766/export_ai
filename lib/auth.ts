@@ -114,7 +114,15 @@ export async function getAuthUser(
   // Try cookie first
   const cookieToken = req.cookies.get("access_token")?.value;
   if (cookieToken) {
-    return verifyToken(cookieToken);
+    const user = await verifyToken(cookieToken);
+    if (user) return user;
+  }
+
+  // Fallback to refresh token if access token is expired or not present
+  const refreshToken = req.cookies.get("refresh_token")?.value;
+  if (refreshToken) {
+    const refreshUser = await verifyToken(refreshToken);
+    if (refreshUser) return refreshUser;
   }
 
   // Try Authorization header
@@ -130,6 +138,17 @@ export async function getAuthUser(
 export async function getCurrentUser() {
   const cookieStore = await cookies();
   const token = cookieStore.get("access_token")?.value;
-  if (!token) return null;
-  return verifyToken(token);
+  if (token) {
+    const user = await verifyToken(token);
+    if (user) return user;
+  }
+
+  // Fallback to refresh token if access token is expired or not present
+  const refreshToken = cookieStore.get("refresh_token")?.value;
+  if (refreshToken) {
+    const refreshUser = await verifyToken(refreshToken);
+    if (refreshUser) return refreshUser;
+  }
+
+  return null;
 }

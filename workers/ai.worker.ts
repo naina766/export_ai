@@ -64,12 +64,12 @@ export async function startAIWorker() {
         if (campaign) {
           const product = campaign.product
             ? {
-                name: campaign.product.name,
-                material: campaign.product.material,
-                frequency: campaign.product.frequency,
-                moq: campaign.product.moq,
-                priceMin: Number(campaign.product.priceMin),
-              }
+              name: campaign.product.name,
+              material: campaign.product.material,
+              frequency: campaign.product.frequency,
+              moq: campaign.product.moq,
+              priceMin: Number(campaign.product.priceMin),
+            }
             : null;
 
           const personalized = await generatePersonalizedEmail({

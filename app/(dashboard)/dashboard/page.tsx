@@ -156,7 +156,12 @@ export default function DashboardPage() {
       ]);
 
       if (!overviewRes.ok || !funnelRes.ok) {
-        throw new Error("Failed to load dashboard operational analytics.");
+        if (overviewRes.status === 401 || funnelRes.status === 401) {
+          window.location.href = "/login?redirect=/dashboard";
+          return;
+        }
+        const errJson = !overviewRes.ok ? await overviewRes.json().catch(() => null) : await funnelRes.json().catch(() => null);
+        throw new Error(errJson?.message || "Failed to load dashboard operational analytics.");
       }
 
       const overviewJson = await overviewRes.json();

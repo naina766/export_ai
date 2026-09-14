@@ -54,6 +54,9 @@ export async function POST(req: NextRequest) {
     if (!user) return errorResponse("Unauthorized", 401);
 
     const body = await req.json();
+    if (!body.leadIds && Array.isArray(body.recipientLeadIds)) {
+      body.leadIds = body.recipientLeadIds;
+    }
     const parsed = CreateCampaignSchema.safeParse(body);
     if (!parsed.success) {
       return errorResponse("Validation failed", 400, parsed.error.flatten());

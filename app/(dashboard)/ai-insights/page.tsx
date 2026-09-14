@@ -215,9 +215,9 @@ export default function AIIntelligenceCenterPage() {
 
       {/* ── MAIN 3-COLUMN INTELLIGENCE GRID ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        {/* ═════════════════════════════════════════════════════════════════════
+        {/* 
             COLUMN 1: MARKET SIGNALS
-        ═════════════════════════════════════════════════════════════════════ */}
+         */}
         <div className="rounded-xl bg-[#0F141D] border border-white/[0.08] p-6 space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
             <div className="flex items-center gap-2">
@@ -268,9 +268,9 @@ export default function AIIntelligenceCenterPage() {
           </div>
         </div>
 
-        {/* ═════════════════════════════════════════════════════════════════════
+        {/* 
             COLUMN 2: BUYER SIGNALS
-        ═════════════════════════════════════════════════════════════════════ */}
+        */}
         <div className="rounded-xl bg-[#0F141D] border border-white/[0.08] p-6 space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
             <div className="flex items-center gap-2">

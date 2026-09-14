@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { jwtVerify } from "jose";
 
 const PROTECTED_PREFIXES = [
   "/dashboard",
@@ -19,27 +20,76 @@ const PROTECTED_PREFIXES = [
   "/follow-ups",
 ];
 
-export function middleware(req: NextRequest) {
+function getJwtSecret(): Uint8Array {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    return new TextEncoder().encode("dev-secret-key-at-least-32-chars-long-for-hmac-sha256");
+  }
+  return new TextEncoder().encode(secret);
+}
+
+async function verifyToken(token: string | undefined): Promise<boolean> {
+  if (!token) return false;
+  try {
+    await jwtVerify(token, getJwtSecret());
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   const accessToken = req.cookies.get("access_token")?.value;
   const refreshToken = req.cookies.get("refresh_token")?.value;
-  const isAuthenticated = Boolean(accessToken || refreshToken);
+
+  const hasValidAccess = await verifyToken(accessToken);
+  const hasValidRefresh = !hasValidAccess && refreshToken ? await verifyToken(refreshToken) : false;
+  const isAuthenticated = hasValidAccess || hasValidRefresh;
 
   const isProtectedPath = PROTECTED_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
   );
 
-  // If user tries to access protected route while unauthenticated, redirect to login
+  // If user visits root path '/'
+  if (pathname === "/") {
+    if (isAuthenticated) {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
+    const loginUrl = new URL("/login", req.url);
+    const res = NextResponse.redirect(loginUrl);
+    if (accessToken || refreshToken) {
+      res.cookies.delete("access_token");
+      res.cookies.delete("refresh_token");
+    }
+    return res;
+  }
+
+  // If user tries to access protected route while unauthenticated, redirect to login and wipe invalid cookies
   if (isProtectedPath && !isAuthenticated) {
     const loginUrl = new URL("/login", req.url);
     loginUrl.searchParams.set("redirect", pathname);
-    return NextResponse.redirect(loginUrl);
+    const res = NextResponse.redirect(loginUrl);
+    if (accessToken || refreshToken) {
+      res.cookies.delete("access_token");
+      res.cookies.delete("refresh_token");
+    }
+    return res;
   }
 
-  // If authenticated user visits login or register, redirect to dashboard
-  if ((pathname === "/login" || pathname === "/register") && isAuthenticated) {
-    return NextResponse.redirect(new URL("/dashboard", req.url));
+  // If visiting login or register
+  if (pathname === "/login" || pathname === "/register") {
+    if (isAuthenticated) {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
+    // If unauthenticated but stale/expired cookies exist, delete them
+    if (accessToken || refreshToken) {
+      const res = NextResponse.next();
+      res.cookies.delete("access_token");
+      res.cookies.delete("refresh_token");
+      return res;
+    }
   }
 
   return NextResponse.next();

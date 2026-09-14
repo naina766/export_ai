@@ -145,7 +145,7 @@ export default function NewCampaignPage() {
           subject,
           productId: selectedProductId || undefined,
           templateId: selectedTemplateId || undefined,
-          recipientLeadIds: selectedLeadIds,
+          leadIds: selectedLeadIds,
           dailyLimit: Number(dailyLimit),
           delayBetweenEmails: Number(delayBetweenEmails),
         }),
@@ -156,7 +156,13 @@ export default function NewCampaignPage() {
         toast.success("Campaign created with precomputed AI personalized copy!");
         router.push(`/campaigns/${json.data.id}`);
       } else {
-        toast.error(json.message || "Failed to create campaign");
+        const fieldErrors = json.errors?.fieldErrors;
+        const detailMsg = fieldErrors
+          ? Object.entries(fieldErrors)
+              .map(([key, errs]) => `${key}: ${(errs as string[]).join(", ")}`)
+              .join("; ")
+          : null;
+        toast.error(detailMsg || json.message || "Failed to create campaign");
       }
     } catch {
       toast.error("Network error during campaign creation");

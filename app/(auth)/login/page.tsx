@@ -242,9 +242,9 @@ function LoginForm() {
 export default function LoginPage() {
   return (
     <div className="min-h-screen w-full bg-[#05070B] text-[#F8FAFC] flex flex-col lg:flex-row overflow-x-hidden font-sans">
-      {/* ═══════════════════════════════════════════════════════════════════════
+      {/* 
           LEFT SIDE: Authentication (50% Desktop / 60% Tablet / 100% Mobile)
-      ═══════════════════════════════════════════════════════════════════════ */}
+      */}
       <div className="w-full lg:w-1/2 flex flex-col justify-between p-6 sm:p-10 lg:p-16 z-10">
         <div>
           <Link href="/login" className="inline-flex items-center gap-2.5">
@@ -270,9 +270,9 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* ═══════════════════════════════════════════════════════════════════════
+      {/* 
           RIGHT SIDE: Interactive AI Export Intelligence Panel (50% Desktop)
-      ═══════════════════════════════════════════════════════════════════════ */}
+       */}
       <div className="w-full lg:w-1/2 bg-[#080B12] border-t lg:border-t-0 lg:border-l border-white/[0.08] p-6 sm:p-10 lg:p-16 flex flex-col justify-between relative overflow-hidden">
         {/* Subtle geometric dot grid */}
         <div
